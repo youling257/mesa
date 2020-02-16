@@ -117,9 +117,6 @@ get_format_bpp(int native)
    int bpp;
 
    switch (native) {
-   case HAL_PIXEL_FORMAT_RGBA_FP16:
-      bpp = 8;
-      break;
    case HAL_PIXEL_FORMAT_RGBA_8888:
    case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
       /*
@@ -128,7 +125,6 @@ get_format_bpp(int native)
        */
    case HAL_PIXEL_FORMAT_RGBX_8888:
    case HAL_PIXEL_FORMAT_BGRA_8888:
-   case HAL_PIXEL_FORMAT_RGBA_1010102:
       bpp = 4;
       break;
    case HAL_PIXEL_FORMAT_RGB_565:
@@ -155,8 +151,6 @@ static int get_fourcc(int native)
        * TODO: Remove this once https://issuetracker.google.com/32077885 is fixed.
        */
    case HAL_PIXEL_FORMAT_RGBX_8888: return DRM_FORMAT_XBGR8888;
-   case HAL_PIXEL_FORMAT_RGBA_FP16: return DRM_FORMAT_ABGR16161616F;
-   case HAL_PIXEL_FORMAT_RGBA_1010102: return DRM_FORMAT_ABGR2101010;
    default:
       _eglLog(_EGL_WARNING, "unsupported native buffer format 0x%x", native);
    }
@@ -1093,8 +1087,6 @@ static int get_format(int format)
        * TODO: Revert this once https://issuetracker.google.com/32077885 is fixed.
        */
    case HAL_PIXEL_FORMAT_RGBX_8888: return __DRI_IMAGE_FORMAT_XBGR8888;
-   case HAL_PIXEL_FORMAT_RGBA_FP16: return __DRI_IMAGE_FORMAT_ABGR16161616F;
-   case HAL_PIXEL_FORMAT_RGBA_1010102: return __DRI_IMAGE_FORMAT_ABGR2101010;
    default:
       _eglLog(_EGL_WARNING, "unsupported native buffer format 0x%x", format);
    }
