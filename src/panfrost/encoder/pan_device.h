@@ -38,6 +38,7 @@
 #include "util/sparse_array.h"
 
 #include <panfrost-misc.h>
+#include <pthread.h>
 
 /* Driver limits */
 #define PAN_MAX_CONST_BUFFERS 16
