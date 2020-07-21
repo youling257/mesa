@@ -38,6 +38,7 @@
 #include "util/sparse_array.h"
 
 #include <midgard_pack.h>
+#include <pthread.h>
 
 /* Driver limits */
 #define PAN_MAX_CONST_BUFFERS 16
