@@ -37,6 +37,7 @@
 #include "sb_pass.h"
 #include "sb_sched.h"
 #include "eg_sq.h" // V_SQ_CF_INDEX_NONE/0/1
+#include <stdlib.h>
 
 namespace r600_sb {
 
