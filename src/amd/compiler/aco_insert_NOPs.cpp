@@ -605,7 +605,7 @@ void handle_block_gfx10(Program *program, NOP_ctx_gfx10& ctx, Block& block)
 
 void mitigate_hazards_gfx10(Program *program)
 {
-   NOP_ctx_gfx10 all_ctx[program->blocks.size()];
+   NOP_ctx_gfx10 *all_ctx = new NOP_ctx_gfx10[program->blocks.size()];
    std::stack<unsigned> loop_header_indices;
 
    for (unsigned i = 0; i < program->blocks.size(); i++) {

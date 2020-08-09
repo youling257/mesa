@@ -791,8 +791,8 @@ void insert_wait_states(Program* program)
 {
    /* per BB ctx */
    std::vector<bool> done(program->blocks.size());
-   wait_ctx in_ctx[program->blocks.size()];
-   wait_ctx out_ctx[program->blocks.size()];
+   wait_ctx *in_ctx = new wait_ctx[program->blocks.size()];
+   wait_ctx *out_ctx = new wait_ctx[program->blocks.size()];
    for (unsigned i = 0; i < program->blocks.size(); i++)
       in_ctx[i] = wait_ctx(program);
    std::stack<unsigned> loop_header_indices;
