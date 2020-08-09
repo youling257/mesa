@@ -328,7 +328,7 @@ do_reload(spill_ctx& ctx, Temp tmp, Temp new_name, uint32_t spill_id)
       reload->operands[0] = Operand::c32(spill_id);
       reload->definitions[0] = Definition(new_name);
       ctx.is_reloaded[spill_id] = true;
-      return reload;
+      return std::move(reload);
    }
 }
 
