@@ -79,7 +79,7 @@ Operand get_ssa(Program *program, unsigned block_idx, ssa_state *state, bool bef
       Temp res = Temp(program->allocateId(), program->lane_mask);
       state->latest[block_idx] = Operand(res);
 
-      Operand ops[pred];
+      Operand *ops = new Operand[pred];
       for (unsigned i = 0; i < pred; i++)
          ops[i] = get_ssa(program, block.linear_preds[i], state, false);
 

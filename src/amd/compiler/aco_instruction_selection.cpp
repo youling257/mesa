@@ -3195,7 +3195,7 @@ void emit_load(isel_context *ctx, Builder& bld, const LoadEmitInfo *info)
    unsigned component_size = info->component_size;
 
    unsigned num_vals = 0;
-   Temp vals[info->dst.bytes()];
+   Temp *vals = new Temp[info->dst.bytes()];
 
    unsigned const_offset = info->const_offset;
 
@@ -3344,7 +3344,7 @@ void emit_load(isel_context *ctx, Builder& bld, const LoadEmitInfo *info)
    std::array<Temp, NIR_MAX_VEC_COMPONENTS> allocated_vec;
    bool has_vgprs = false;
    for (unsigned i = 0; i < num_vals;) {
-      Temp tmp[num_vals];
+      Temp *tmp = new Temp[num_vals];
       unsigned num_tmps = 0;
       unsigned tmp_size = 0;
       RegType reg_type = RegType::sgpr;
@@ -4792,7 +4792,7 @@ void visit_load_input(isel_context *ctx, nir_intrinsic_instr *instr)
                             get_arg(ctx, ctx->args->ac.vertex_id));
       }
 
-      Temp channels[num_channels];
+      Temp *channels = new Temp[num_channels];
       unsigned channel_start = 0;
       bool direct_fetch = false;
 
@@ -8802,7 +8802,7 @@ void visit_tex(isel_context *ctx, nir_tex_instr *instr)
 
       if (tg4_integer_cube_workaround) {
          // see comment in ac_nir_to_llvm.c's lower_gather4_integer()
-         Temp desc[resource.size()];
+         Temp *desc = new Temp[resource.size()];
          aco_ptr<Instruction> split{create_instruction<Pseudo_instruction>(aco_opcode::p_split_vector,
                                                                            Format::PSEUDO, 1, resource.size())};
          split->operands[0] = Operand(resource);
@@ -9135,7 +9135,7 @@ void visit_phi(isel_context *ctx, nir_phi_instr *instr)
 
    std::vector<unsigned>& preds = logical ? ctx->block->logical_preds : ctx->block->linear_preds;
    unsigned num_operands = 0;
-   Operand operands[std::max(exec_list_length(&instr->srcs), (unsigned)preds.size()) + 1];
+   Operand *operands = new Operand[std::max(exec_list_length(&instr->srcs), (unsigned)preds.size()) + 1];
    unsigned num_defined = 0;
    unsigned cur_pred_idx = 0;
    for (std::pair<unsigned, nir_ssa_def *> src : phi_src) {
@@ -9534,7 +9534,7 @@ static void visit_loop(isel_context *ctx, nir_loop *loop)
     * merge block would get CSE'd */
    if (nir_loop_last_block(loop)->successors[0] != nir_loop_first_block(loop)) {
       unsigned num_vals = ctx->cf_info.has_branch ? 1 : (ctx->block->index - loop_header_idx + 1);
-      Operand vals[num_vals];
+      Operand *vals = new Operand[num_vals];
       for (aco_ptr<Instruction>& instr : ctx->program->blocks[loop_header_idx].instructions) {
          if (instr->opcode == aco_opcode::p_linear_phi) {
             if (ctx->cf_info.has_branch)
