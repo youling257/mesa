@@ -1,7 +1,7 @@
 #include "target-helpers/drm_helper.h"
 #include "target-helpers/sw_helper.h"
 
-#include "dri_screen.h"
+#include "../../frontends/dri/dri_screen.h"
 
 #define DEFINE_LOADER_DRM_ENTRYPOINT(drivername)                          \
 const __DRIextension **__driDriverGetExtensions_##drivername(void);       \
