@@ -299,7 +299,7 @@ aco_ptr<Instruction> do_reload(spill_ctx& ctx, Temp tmp, Temp new_name, uint32_t
       reload->operands[0] = Operand(spill_id);
       reload->definitions[0] = Definition(new_name);
       ctx.is_reloaded[spill_id] = true;
-      return reload;
+      return std::move(reload);
    }
 }
 
