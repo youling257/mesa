@@ -547,7 +547,7 @@ loader_open_driver(const char *driver_name,
       search_paths = DEFAULT_DRIVER_DIR;
 
    void *driver = NULL;
-   char *dl_error = NULL;
+   const char *dl_error = NULL;
    end = search_paths + strlen(search_paths);
    for (char *p = search_paths; p < end; p = next + 1) {
       int len;
