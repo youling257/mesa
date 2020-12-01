@@ -45,7 +45,7 @@ extern "C" {
  * sync_wait() and sync_merge().  This gives us compatibility with pre-4.7
  * Android kernels.
  */
-#include <android/sync.h>
+#include <sync/sync.h>
 #else
 
 #ifndef SYNC_IOC_MERGE
