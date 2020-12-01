@@ -105,6 +105,7 @@ anv_gem_mmap_legacy(struct anv_device *device, uint32_t gem_handle,
    if (ret != 0)
       return MAP_FAILED;
 
+   VG(VALGRIND_MALLOCLIKE_BLOCK(gem_mmap.addr_ptr, gem_mmap.size, 0, 1));
    return (void *)(uintptr_t) gem_mmap.addr_ptr;
 }
 
@@ -115,16 +116,10 @@ void*
 anv_gem_mmap(struct anv_device *device, uint32_t gem_handle,
              uint64_t offset, uint64_t size, uint32_t flags)
 {
-   void *map;
    if (device->physical->has_mmap_offset)
-      map = anv_gem_mmap_offset(device, gem_handle, offset, size, flags);
+      return anv_gem_mmap_offset(device, gem_handle, offset, size, flags);
    else
-      map = anv_gem_mmap_legacy(device, gem_handle, offset, size, flags);
-
-   if (map != MAP_FAILED)
-      VG(VALGRIND_MALLOCLIKE_BLOCK(map, size, 0, 1));
-
-   return map;
+      return anv_gem_mmap_legacy(device, gem_handle, offset, size, flags);
 }
 
 /* This is just a wrapper around munmap, but it also notifies valgrind that
@@ -133,7 +128,8 @@ anv_gem_mmap(struct anv_device *device, uint32_t gem_handle,
 void
 anv_gem_munmap(struct anv_device *device, void *p, uint64_t size)
 {
-   VG(VALGRIND_FREELIKE_BLOCK(p, 0));
+   if (!device->physical->has_mmap_offset)
+      VG(VALGRIND_FREELIKE_BLOCK(p, 0));
    munmap(p, size);
 }
 
