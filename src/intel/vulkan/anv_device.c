@@ -954,8 +954,12 @@ anv_physical_device_try_create(struct anv_instance *instance,
    device->always_flush_cache = INTEL_DEBUG(DEBUG_SYNC) ||
       driQueryOptionb(&instance->dri_options, "always_flush_cache");
 
+#if defined(ANDROID)
+   device->has_mmap_offset = false;
+#else
    device->has_mmap_offset =
       anv_gem_get_param(fd, I915_PARAM_MMAP_GTT_VERSION) >= 4;
+#endif
 
    device->has_userptr_probe =
       anv_gem_get_param(fd, I915_PARAM_HAS_USERPTR_PROBE);
