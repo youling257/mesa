@@ -79,8 +79,7 @@ struct loop_info {
 };
 
 struct block_info {
-   std::vector<std::pair<Operand, uint8_t>>
-      exec; /* Vector of exec masks. Either a temporary or const -1. */
+   std::vector<std::pair<Operand, uint8_t>> exec;
    std::vector<WQMState> instr_needs;
    uint8_t block_needs;
    uint8_t ever_again_needs;
@@ -414,16 +413,13 @@ add_coupling_code(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instruction>>
       assert(startpgm->opcode == aco_opcode::p_startpgm);
       bld.insert(std::move(startpgm));
 
-      Operand start_exec(bld.lm);
-
       /* exec seems to need to be manually initialized with combined shaders */
       if (ctx.program->stage.num_sw_stages() > 1 || ctx.program->stage.hw == HWStage::NGG) {
-         start_exec = Operand::c32_or_c64(-1u, bld.lm == s2);
-         bld.copy(Definition(exec, bld.lm), start_exec);
+         bld.copy(Definition(exec, bld.lm), Operand::c32_or_c64(UINT32_MAX, bld.lm == s2));
       }
 
       if (ctx.handle_wqm) {
-         ctx.info[0].exec.emplace_back(start_exec, mask_type_global | mask_type_exact);
+         ctx.info[0].exec.emplace_back(Operand(bld.lm), mask_type_global | mask_type_exact);
          /* if this block only needs WQM, initialize already */
          if (ctx.info[0].block_needs == WQM)
             transition_to_WQM(ctx, bld, 0);
@@ -436,7 +432,7 @@ add_coupling_code(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instruction>>
          } else {
             mask |= mask_type_exact;
          }
-         ctx.info[0].exec.emplace_back(start_exec, mask);
+         ctx.info[0].exec.emplace_back(Operand(bld.lm), mask);
       }
 
       return 1;
@@ -671,9 +667,7 @@ add_coupling_code(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instruction>>
    if (block->kind & block_kind_merge && !ctx.info[idx].exec.back().first.isUndefined()) {
       Operand restore = ctx.info[idx].exec.back().first;
       assert(restore.size() == bld.lm.size());
-      bld.pseudo(aco_opcode::p_parallelcopy, Definition(exec, bld.lm), restore);
-      if (!restore.isConstant())
-         ctx.info[idx].exec.back().first = Operand(bld.lm);
+      ctx.info[idx].exec.back().first = bld.pseudo(aco_opcode::p_parallelcopy, Definition(exec, bld.lm), restore);
    }
 
    return i;
