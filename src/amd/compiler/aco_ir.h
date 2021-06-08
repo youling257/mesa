@@ -831,8 +831,6 @@ public:
          return other.isTemp() && other.getTemp() == getTemp();
    }
 
-   constexpr bool operator!=(Operand other) const noexcept { return !operator==(other); }
-
    constexpr void set16bit(bool flag) noexcept { is16bit_ = flag; }
 
    constexpr bool is16bit() const noexcept { return is16bit_; }
