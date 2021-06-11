@@ -36,6 +36,7 @@
 
 #include "sb_shader.h"
 #include "sb_pass.h"
+#include <stdlib.h>
 
 namespace r600_sb {
 
