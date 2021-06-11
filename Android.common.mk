@@ -39,6 +39,22 @@ LOCAL_CFLAGS += \
 	-Wno-missing-field-initializers \
 	-Wno-initializer-overrides \
 	-Wno-mismatched-tags \
+	-Wno-missing-braces \
+	-Wno-typedef-redefinition \
+	-Wno-bitfield-constant-conversion \
+	-Wno-sometimes-uninitialized \
+	-Wno-self-assign \
+	-Wno-overloaded-virtual \
+	-Wno-tautological-constant-out-of-range-compare \
+	-Wno-tautological-compare \
+	-Wno-constant-logical-operand \
+	-Wno-constant-conversion \
+	-Wno-enum-conversion \
+	-Wno-deprecated-register \
+	-Wno-implicit-function-declaration \
+	-Wno-extern-initializer \
+	-Wno-ignored-qualifiers \
+	-Wno-gnu-variable-sized-type-not-at-end \
 	-DPACKAGE_VERSION=\"$(MESA_VERSION)\" \
 	-DPACKAGE_BUGREPORT=\"https://gitlab.freedesktop.org/mesa/mesa/-/issues\"
 

@@ -37,7 +37,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_CFLAGS += -DFORCE_BUILD_AMDGPU   # instructs LLVM to declare LLVMInitializeAMDGPU* functions
 
-LOCAL_CPPFLAGS += -Wall -std=c++14
+LOCAL_CPPFLAGS += -Wall -Wno-missing-braces -std=c++14
 
 # generate sources
 LOCAL_MODULE_CLASS := STATIC_LIBRARIES
