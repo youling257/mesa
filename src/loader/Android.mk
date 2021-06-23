@@ -39,6 +39,10 @@ ifneq ($(HAVE_GALLIUM_IRIS),)
 LOCAL_CFLAGS += -DPREFER_IRIS
 endif
 
+ifneq ($(HAVE_GALLIUM_CROCUS),)
+LOCAL_CFLAGS += -DPREFER_CROCUS
+endif
+
 LOCAL_MODULE := libmesa_loader
 
 include $(MESA_COMMON_MK)
