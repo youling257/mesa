@@ -15,3 +15,5 @@ $(call add-clean-step, rm -rf $(HOST_OUT)/*/EXECUTABLES/glsl_compiler_intermedia
 $(call add-clean-step, rm -rf $(HOST_OUT)/*/STATIC_LIBRARIES/libmesa_*_intermediates)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/*/SHARED_LIBRARIES/*_dri_intermediates)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/*/SHARED_LIBRARIES/*_dri_intermediates)
+
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/*/STATIC_LIBRARIES/libmesa_*_intermediates)
