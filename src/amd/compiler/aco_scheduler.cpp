@@ -25,7 +25,7 @@
 #include "aco_builder.h"
 #include "aco_ir.h"
 
-#include "common/amdgfxregs.h"
+#include "amdgfxregs.h"
 
 #include <algorithm>
 #include <unordered_set>
