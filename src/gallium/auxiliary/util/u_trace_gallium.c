@@ -27,7 +27,7 @@
 #include "pipe/p_context.h"
 #include "pipe/p_screen.h"
 
-#include "u_tracepoints.h"
+#include "util/u_tracepoints.h"
 
 #ifdef  __cplusplus
 extern "C" {
