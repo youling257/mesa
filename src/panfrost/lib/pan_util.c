@@ -76,9 +76,12 @@ panfrost_format_to_bifrost_blend(const struct panfrost_device *dev,
                                  enum pipe_format format,
                                  bool dithered)
 {
-        mali_pixel_format pixfmt = (dev->quirks & HAS_SWIZZLES) ?
-                panfrost_blendable_formats_v7[format].bifrost[dithered] :
-                panfrost_blendable_formats_v6[format].bifrost[dithered];
+        mali_pixel_format pixfmt = panfrost_blendable_formats_v7[format].bifrost;
 
-        return pixfmt ?: dev->formats[format].hw;
+        if (pixfmt) {
+                return pixfmt | ((dev->quirks & HAS_SWIZZLES) ?
+                                panfrost_get_default_swizzle(4) : 0);
+        } else {
+                return dev->formats[format].hw;
+        }
 }
