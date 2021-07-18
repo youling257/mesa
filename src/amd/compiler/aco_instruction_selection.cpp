@@ -8800,11 +8800,7 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       break;
    }
    case nir_intrinsic_elect: {
-      /* p_elect is lowered in aco_insert_exec_mask.
-       * Use exec as an operand so value numbering and the pre-RA optimizer won't recognize
-       * two p_elect with different exec masks as the same.
-       */
-      Temp elected = bld.pseudo(aco_opcode::p_elect, bld.def(bld.lm), Operand(exec, bld.lm));
+      Temp elected = bld.pseudo(aco_opcode::p_elect, bld.def(bld.lm));
       emit_wqm(bld, elected, get_ssa_temp(ctx, &instr->dest.ssa));
       ctx->block->kind |= block_kind_needs_lowering;
       break;
