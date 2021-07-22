@@ -268,6 +268,7 @@ NIR_FILES = \
 	nir/nir_lower_load_const_to_scalar.c \
 	nir/nir_lower_locals_to_regs.c \
 	nir/nir_lower_idiv.c \
+	nir/nir_lower_image.c \
 	nir/nir_lower_indirect_derefs.c \
 	nir/nir_lower_input_attachments.c \
 	nir/nir_lower_int64.c \
