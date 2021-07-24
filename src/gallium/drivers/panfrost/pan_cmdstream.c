@@ -34,7 +34,6 @@
 #include "gallium/auxiliary/util/u_blend.h"
 
 #include "panfrost-quirks.h"
-#include "gen_macros.h"
 
 #include "pan_pool.h"
 #include "pan_bo.h"
@@ -3542,7 +3541,7 @@ context_init(struct pipe_context *pipe)
 }
 
 void
-GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
+panfrost_cmdstream_screen_init(struct panfrost_screen *screen)
 {
         struct panfrost_device *dev = &screen->dev;
 
@@ -3558,3 +3557,5 @@ GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
         pan_blitter_init(dev, &screen->blitter.bin_pool.base,
                          &screen->blitter.desc_pool.base);
 }
+
+
