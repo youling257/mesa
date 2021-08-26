@@ -132,54 +132,49 @@ __gen_unpack_padded(const uint8_t *restrict cl, uint32_t start, uint32_t end)
    return (2*odd + 1) << shift;
 }
 
-#define PREFIX1(A) MALI_ ## A
-#define PREFIX2(A, B) MALI_ ## A ## _ ## B
-#define PREFIX4(A, B, C, D) MALI_ ## A ## _ ## B ## _ ## C ## _ ## D
-
 #define pan_prepare(dst, T)                                 \\
-   *(dst) = (struct PREFIX1(T)){ PREFIX2(T, header) }
+   *(dst) = (struct MALI_ ## T){ MALI_ ## T ## _header }
 
 #define pan_pack(dst, T, name)                              \\
-   for (struct PREFIX1(T) name = { PREFIX2(T, header) }, \\
+   for (struct MALI_ ## T name = { MALI_ ## T ## _header }, \\
         *_loop_terminate = (void *) (dst);                  \\
         __builtin_expect(_loop_terminate != NULL, 1);       \\
-        ({ PREFIX2(T, pack)((uint32_t *) (dst), &name);  \\
+        ({ MALI_ ## T ## _pack((uint32_t *) (dst), &name);  \\
            _loop_terminate = NULL; }))
 
 #define pan_unpack(src, T, name)                        \\
-        struct PREFIX1(T) name;                         \\
-        PREFIX2(T, unpack)((uint8_t *)(src), &name)
+        struct MALI_ ## T name;                         \\
+        MALI_ ## T ## _unpack((uint8_t *)(src), &name)
 
 #define pan_print(fp, T, var, indent)                   \\
-        PREFIX2(T, print)(fp, &(var), indent)
+        MALI_ ## T ## _print(fp, &(var), indent)
 
-#define pan_size(T) PREFIX2(T, LENGTH)
-#define pan_alignment(T) PREFIX2(T, ALIGN)
+#define PREFIX(A, B, C, D) MALI_ ## A ## _ ## B ## _ ## C ## _ ## D
 
 #define pan_section_offset(A, S) \\
-        PREFIX4(A, SECTION, S, OFFSET)
+        PREFIX(A, SECTION, S, OFFSET)
 
 #define pan_section_ptr(base, A, S) \\
         ((void *)((uint8_t *)(base) + pan_section_offset(A, S)))
 
 #define pan_section_pack(dst, A, S, name)                                                         \\
-   for (PREFIX4(A, SECTION, S, TYPE) name = { PREFIX4(A, SECTION, S, header) }, \\
+   for (PREFIX(A, SECTION, S, TYPE) name = { PREFIX(A, SECTION, S, header) }, \\
         *_loop_terminate = (void *) (dst);                                                        \\
         __builtin_expect(_loop_terminate != NULL, 1);                                             \\
-        ({ PREFIX4(A, SECTION, S, pack) (pan_section_ptr(dst, A, S), &name);              \\
+        ({ PREFIX(A, SECTION, S, pack) (pan_section_ptr(dst, A, S), &name);              \\
            _loop_terminate = NULL; }))
 
 #define pan_section_unpack(src, A, S, name)                               \\
-        PREFIX4(A, SECTION, S, TYPE) name;                             \\
-        PREFIX4(A, SECTION, S, unpack)(pan_section_ptr(src, A, S), &name)
+        MALI_ ## A ## _SECTION_ ## S ## _TYPE name;                       \\
+        MALI_ ## A ## _SECTION_ ## S ## _unpack(pan_section_ptr(src, A, S), &name)
 
 #define pan_section_print(fp, A, S, var, indent)                          \\
-        PREFIX4(A, SECTION, S, print)(fp, &(var), indent)
+        MALI_ ## A ## _SECTION_ ## S ## _print(fp, &(var), indent)
 
 #define pan_merge(packed1, packed2, type) \
         do { \
-                for (unsigned i = 0; i < (PREFIX2(type, LENGTH) / 4); ++i) \
-                        (packed1).opaque[i] |= (packed2).opaque[i]; \
+                for (unsigned i = 0; i < (MALI_ ## type ## _LENGTH / 4); ++i) \
+                        packed1.opaque[i] |= packed2.opaque[i]; \
         } while(0)
 
 #define mali_pixel_format_print_v6(fp, format) \\

@@ -24,8 +24,6 @@
 #ifndef __PAN_INDIRECT_DRAW_SHADERS_H__
 #define __PAN_INDIRECT_DRAW_SHADERS_H__
 
-#include "gen_macros.h"
-
 struct pan_device;
 struct pan_scoreboard;
 struct pan_pool;
@@ -49,16 +47,16 @@ struct pan_indirect_draw_info {
 };
 
 unsigned
-GENX(panfrost_emit_indirect_draw)(struct pan_pool *pool,
-                                  struct pan_scoreboard *scoreboard,
-                                  const struct pan_indirect_draw_info *draw_info,
-                                  struct panfrost_ptr *ctx);
+panfrost_emit_indirect_draw(struct pan_pool *pool,
+                            struct pan_scoreboard *scoreboard,
+                            const struct pan_indirect_draw_info *draw_info,
+                            struct panfrost_ptr *ctx);
 
 void
-GENX(panfrost_init_indirect_draw_shaders)(struct panfrost_device *dev,
-                                          struct pan_pool *bin_pool);
+panfrost_init_indirect_draw_shaders(struct panfrost_device *dev,
+                                    struct pan_pool *bin_pool);
 
 void
-GENX(panfrost_cleanup_indirect_draw_shaders)(struct panfrost_device *dev);
+panfrost_cleanup_indirect_draw_shaders(struct panfrost_device *dev);
 
 #endif

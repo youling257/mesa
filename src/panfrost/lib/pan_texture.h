@@ -32,7 +32,7 @@
 #include "drm-uapi/drm_fourcc.h"
 #include "util/format/u_format.h"
 #include "compiler/shader_enums.h"
-#include "gen_macros.h"
+#include "midgard_pack.h"
 #include "pan_bo.h"
 #include "pan_device.h"
 #include "pan_util.h"
@@ -82,6 +82,17 @@ enum pan_image_crc_mode {
       PAN_IMAGE_CRC_INBAND,
       PAN_IMAGE_CRC_OOB,
 };
+
+#ifndef PAN_PACK_H
+/* Avoid the GenXML dependence */
+
+enum mali_texture_dimension {
+        MALI_TEXTURE_DIMENSION_CUBE = 0,
+        MALI_TEXTURE_DIMENSION_1D   = 1,
+        MALI_TEXTURE_DIMENSION_2D   = 2,
+        MALI_TEXTURE_DIMENSION_3D   = 3,
+};
+#endif
 
 struct pan_image_layout {
         uint64_t modifier;
@@ -184,6 +195,21 @@ struct pan_scoreboard;
 #define drm_is_afbc(mod) \
         ((mod >> 52) == (DRM_FORMAT_MOD_ARM_TYPE_AFBC | \
                 (DRM_FORMAT_MOD_VENDOR_ARM << 4)))
+
+/* Map modifiers to mali_texture_layout for packing in a texture descriptor */
+
+static inline enum mali_texture_layout
+panfrost_modifier_to_layout(uint64_t modifier)
+{
+        if (drm_is_afbc(modifier))
+                return MALI_TEXTURE_LAYOUT_AFBC;
+        else if (modifier == DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED)
+                return MALI_TEXTURE_LAYOUT_TILED;
+        else if (modifier == DRM_FORMAT_MOD_LINEAR)
+                return MALI_TEXTURE_LAYOUT_LINEAR;
+        else
+                unreachable("Invalid modifer");
+}
 
 struct pan_image_explicit_layout {
         unsigned offset;

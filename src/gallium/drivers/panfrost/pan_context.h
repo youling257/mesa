@@ -222,7 +222,13 @@ struct panfrost_context {
 
 /* Corresponds to the CSO */
 
-struct panfrost_rasterizer;
+struct panfrost_rasterizer {
+        struct pipe_rasterizer_state base;
+
+        /* Partially packed RSD words */
+        struct mali_multisample_misc_packed multisample;
+        struct mali_stencil_mask_misc_packed stencil_misc;
+};
 
 /* Linked varyings */
 struct pan_linkage {
@@ -241,8 +247,6 @@ struct pan_linkage {
         uint32_t stride;
 };
 
-#define RSD_WORDS 16
-
 /* Variants bundle together to form the backing CSO, bundling multiple
  * shaders with varying emulated features baked in */
 
@@ -255,7 +259,7 @@ struct panfrost_shader_state {
         struct panfrost_pool_ref bin, state;
 
         /* For fragment shaders, a prepared (but not uploaded RSD) */
-        uint32_t partial_rsd[RSD_WORDS];
+        struct mali_renderer_state_packed partial_rsd;
 
         struct pan_shader_info info;
 
@@ -315,9 +319,35 @@ struct panfrost_vertex_state {
         unsigned formats[PIPE_MAX_ATTRIBS];
 };
 
-struct panfrost_zsa_state;
-struct panfrost_sampler_state;
-struct panfrost_sampler_view;
+struct panfrost_zsa_state {
+        struct pipe_depth_stencil_alpha_state base;
+
+        /* Is any depth, stencil, or alpha testing enabled? */
+        bool enabled;
+
+        /* Mask of PIPE_CLEAR_{DEPTH,STENCIL} written */
+        unsigned draws;
+
+        /* Prepacked words from the RSD */
+        struct mali_multisample_misc_packed rsd_depth;
+        struct mali_stencil_mask_misc_packed rsd_stencil;
+        struct mali_stencil_packed stencil_front, stencil_back;
+};
+
+struct panfrost_sampler_state {
+        struct pipe_sampler_state base;
+        struct mali_midgard_sampler_packed hw;
+};
+
+/* Misnomer: Sampler view corresponds to textures, not samplers */
+
+struct panfrost_sampler_view {
+        struct pipe_sampler_view base;
+        struct panfrost_pool_ref state;
+        struct mali_bifrost_texture_packed bifrost_descriptor;
+        mali_ptr texture_bo;
+        uint64_t modifier;
+};
 
 static inline struct panfrost_context *
 pan_context(struct pipe_context *pcontext)

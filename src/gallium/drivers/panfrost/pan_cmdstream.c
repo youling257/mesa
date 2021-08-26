@@ -47,43 +47,7 @@
 #include "pan_indirect_dispatch.h"
 #include "pan_blitter.h"
 
-struct panfrost_rasterizer {
-        struct pipe_rasterizer_state base;
-
-        /* Partially packed RSD words */
-        struct mali_multisample_misc_packed multisample;
-        struct mali_stencil_mask_misc_packed stencil_misc;
-};
-
-struct panfrost_zsa_state {
-        struct pipe_depth_stencil_alpha_state base;
-
-        /* Is any depth, stencil, or alpha testing enabled? */
-        bool enabled;
-
-        /* Mask of PIPE_CLEAR_{DEPTH,STENCIL} written */
-        unsigned draws;
-
-        /* Prepacked words from the RSD */
-        struct mali_multisample_misc_packed rsd_depth;
-        struct mali_stencil_mask_misc_packed rsd_stencil;
-        struct mali_stencil_packed stencil_front, stencil_back;
-};
-
-struct panfrost_sampler_state {
-        struct pipe_sampler_state base;
-        struct mali_midgard_sampler_packed hw;
-};
-
-/* Misnomer: Sampler view corresponds to textures, not samplers */
-
-struct panfrost_sampler_view {
-        struct pipe_sampler_view base;
-        struct panfrost_pool_ref state;
-        struct mali_bifrost_texture_packed bifrost_descriptor;
-        mali_ptr texture_bo;
-        uint64_t modifier;
-};
+#include "midgard_pack.h"
 
 /* Statically assert that PIPE_* enums match the hardware enums.
  * (As long as they match, we don't need to translate them.)
@@ -179,7 +143,11 @@ panfrost_create_sampler_state(
 
         bool using_nearest = cso->min_img_filter == PIPE_TEX_MIPFILTER_NEAREST;
 
-        pan_pack(&so->hw, SAMPLER, cfg) {
+#if PAN_ARCH <= 5
+        pan_pack(&so->hw, MIDGARD_SAMPLER, cfg) {
+#else
+        pan_pack(&so->hw, BIFROST_SAMPLER, cfg) {
+#endif
                 cfg.magnify_nearest = cso->mag_img_filter == PIPE_TEX_FILTER_NEAREST;
                 cfg.minify_nearest = cso->min_img_filter == PIPE_TEX_FILTER_NEAREST;
 
@@ -271,11 +239,11 @@ panfrost_emit_blend(struct panfrost_batch *batch, void *rts, mali_ptr *blend_sha
 
         /* Always have at least one render target for depth-only passes */
         for (unsigned i = 0; i < MAX2(rt_count, 1); ++i) {
-                struct mali_blend_packed *packed = rts + (i * pan_size(BLEND));
+                struct mali_blend_packed *packed = rts + (i * MALI_BLEND_LENGTH);
 
                 /* Disable blending for unbacked render targets */
                 if (rt_count == 0 || !batch->key.cbufs[i] || so->info[i].no_colour) {
-                        pan_pack(rts + i * pan_size(BLEND), BLEND, cfg) {
+                        pan_pack(rts + i * MALI_BLEND_LENGTH, BLEND, cfg) {
                                 cfg.enable = false;
 #if PAN_ARCH >= 6
                                 cfg.bifrost.internal.mode = MALI_BIFROST_BLEND_MODE_OFF;
@@ -310,7 +278,7 @@ panfrost_emit_blend(struct panfrost_batch *batch, void *rts, mali_ptr *blend_sha
 
                 if (!blend_shaders[i]) {
                         /* Word 1: Blend Equation */
-                        STATIC_ASSERT(pan_size(BLEND_EQUATION) == 4);
+                        STATIC_ASSERT(MALI_BLEND_EQUATION_LENGTH == 4);
                         packed->opaque[PAN_ARCH >= 6 ? 1 : 2] = so->equation[i];
                 }
 
@@ -531,20 +499,16 @@ panfrost_emit_frag_shader(struct panfrost_context *ctx,
 #if PAN_ARCH == 4
         if (ctx->pipe_framebuffer.nr_cbufs > 0 && !blend_shaders[0]) {
                 /* Word 14: SFBD Blend Equation */
-                STATIC_ASSERT(pan_size(BLEND_EQUATION) == 4);
+                STATIC_ASSERT(MALI_BLEND_EQUATION_LENGTH == 4);
                 rsd.opaque[14] = ctx->blend->equation[0];
         }
 #endif
 
         /* Merge with CSO state and upload */
-        if (panfrost_fs_required(fs, ctx->blend, &ctx->pipe_framebuffer, zsa)) {
-                struct mali_renderer_state_packed *partial_rsd =
-                        (struct mali_renderer_state_packed *)&fs->partial_rsd;
-                STATIC_ASSERT(sizeof(fs->partial_rsd) == sizeof(*partial_rsd));
-                pan_merge(rsd, *partial_rsd, RENDERER_STATE);
-        } else {
+        if (panfrost_fs_required(fs, ctx->blend, &ctx->pipe_framebuffer, zsa))
+                pan_merge(rsd, fs->partial_rsd, RENDERER_STATE);
+        else
                 pan_merge_empty_fs(&rsd);
-        }
 
         /* Word 8, 9 Misc state */
         rsd.opaque[8] |= zsa->rsd_depth.opaque[0]
@@ -605,7 +569,7 @@ panfrost_emit_frag_shader_meta(struct panfrost_batch *batch)
         panfrost_emit_frag_shader(ctx, (struct mali_renderer_state_packed *) xfer.cpu, blend_shaders);
 
 #if PAN_ARCH >= 5
-        panfrost_emit_blend(batch, xfer.cpu + pan_size(RENDERER_STATE), blend_shaders);
+        panfrost_emit_blend(batch, xfer.cpu + MALI_RENDERER_STATE_LENGTH, blend_shaders);
 #else
         batch->draws |= PIPE_CLEAR_COLOR0;
         batch->resolve |= PIPE_CLEAR_COLOR0;
@@ -1312,7 +1276,7 @@ panfrost_create_sampler_view_bo(struct panfrost_sampler_view *so,
         };
 
         unsigned size =
-                (PAN_ARCH <= 5 ? pan_size(MIDGARD_TEXTURE) : 0) +
+                (PAN_ARCH <= 5 ? MALI_MIDGARD_TEXTURE_LENGTH : 0) +
                 panfrost_estimate_texture_payload_size(device, &iview);
 
         struct panfrost_ptr payload = pan_pool_alloc_aligned(&ctx->descs.base, size, 64);
@@ -1321,8 +1285,8 @@ panfrost_create_sampler_view_bo(struct panfrost_sampler_view *so,
         void *tex = (PAN_ARCH >= 6) ? &so->bifrost_descriptor : payload.cpu;
 
         if (PAN_ARCH <= 5) {
-                payload.cpu += pan_size(MIDGARD_TEXTURE);
-                payload.gpu += pan_size(MIDGARD_TEXTURE);
+                payload.cpu += MALI_MIDGARD_TEXTURE_LENGTH;
+                payload.gpu += MALI_MIDGARD_TEXTURE_LENGTH;
         }
 
         panfrost_new_texture(device, &iview, tex, &payload);
@@ -1397,8 +1361,8 @@ panfrost_emit_sampler_descriptors(struct panfrost_batch *batch,
         if (!ctx->sampler_count[stage])
                 return 0;
 
-        assert(pan_size(BIFROST_SAMPLER) == pan_size(MIDGARD_SAMPLER));
-        assert(pan_alignment(BIFROST_SAMPLER) == pan_alignment(MIDGARD_SAMPLER));
+        assert(MALI_BIFROST_SAMPLER_LENGTH == MALI_MIDGARD_SAMPLER_LENGTH);
+        assert(MALI_BIFROST_SAMPLER_ALIGN == MALI_MIDGARD_SAMPLER_ALIGN);
 
         struct panfrost_ptr T =
                 pan_pool_alloc_desc_array(&batch->pool.base,
@@ -1560,7 +1524,7 @@ panfrost_emit_image_attribs(struct panfrost_batch *batch,
 
         /* We need an empty attrib buf to stop the prefetching on Bifrost */
 #if PAN_ARCH >= 6
-        pan_pack(bufs.cpu + ((buf_count - 1) * pan_size(ATTRIBUTE_BUFFER)),
+        pan_pack(bufs.cpu + ((buf_count - 1) * MALI_ATTRIBUTE_BUFFER_LENGTH),
                  ATTRIBUTE_BUFFER, cfg);
 #endif
 
@@ -2119,7 +2083,7 @@ panfrost_emit_varying_descs(
         struct mali_attribute_packed *descs = T.cpu;
         out->producer = producer_count ? T.gpu : 0;
         out->consumer = consumer_count ? T.gpu +
-                (pan_size(ATTRIBUTE) * producer_count) : 0;
+                (MALI_ATTRIBUTE_LENGTH * producer_count) : 0;
 
         /* Lay out the varyings. Must use producer to lay out, in order to
          * respect transform feedback precisions. */
@@ -2169,7 +2133,6 @@ panfrost_emit_varying_descs(
         }
 }
 
-#if PAN_ARCH <= 5
 static void
 pan_emit_special_input(struct mali_attribute_buffer_packed *out,
                 unsigned present,
@@ -2185,7 +2148,6 @@ pan_emit_special_input(struct mali_attribute_buffer_packed *out,
                 }
         }
 }
-#endif
 
 static void
 panfrost_emit_varying_descriptor(struct panfrost_batch *batch,
@@ -2281,14 +2243,12 @@ panfrost_emit_varying_descriptor(struct panfrost_batch *batch,
                                 2, vertex_count);
         }
 
-#if PAN_ARCH <= 5
         pan_emit_special_input(varyings, present,
                         PAN_VARY_PNTCOORD, MALI_ATTRIBUTE_SPECIAL_POINT_COORD);
         pan_emit_special_input(varyings, present, PAN_VARY_FACE,
                         MALI_ATTRIBUTE_SPECIAL_FRONT_FACING);
         pan_emit_special_input(varyings, present, PAN_VARY_FRAGCOORD,
                         MALI_ATTRIBUTE_SPECIAL_FRAG_COORD);
-#endif
 
         *buffers = T.gpu;
         *vs_attribs = linkage->producer;
@@ -2521,7 +2481,7 @@ panfrost_draw_emit_vertex(struct panfrost_batch *batch,
 {
         void *section =
                 pan_section_ptr(job, COMPUTE_JOB, INVOCATION);
-        memcpy(section, invocation_template, pan_size(INVOCATION));
+        memcpy(section, invocation_template, MALI_INVOCATION_LENGTH);
 
         pan_section_pack(job, COMPUTE_JOB, PARAMETERS, cfg) {
                 cfg.job_task_split = 5;
@@ -2648,13 +2608,13 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
                 return batch->tiler_ctx.bifrost;
 
         struct panfrost_ptr t =
-                pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
+                pan_pool_alloc_desc(&batch->pool.base, BIFROST_TILER_HEAP);
 
         pan_emit_bifrost_tiler_heap(dev, t.cpu);
 
         mali_ptr heap = t.gpu;
 
-        t = pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
+        t = pan_pool_alloc_desc(&batch->pool.base, BIFROST_TILER);
         pan_emit_bifrost_tiler(dev, batch->key.width, batch->key.height,
                                util_framebuffer_get_num_samples(&batch->key),
                                heap, t.cpu);
@@ -2662,6 +2622,12 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         batch->tiler_ctx.bifrost = t.gpu;
         return batch->tiler_ctx.bifrost;
 }
+#endif
+
+#if PAN_ARCH >= 6
+#define TILER_JOB BIFROST_TILER_JOB
+#else
+#define TILER_JOB MIDGARD_TILER_JOB
 #endif
 
 static void
@@ -2676,7 +2642,7 @@ panfrost_draw_emit_tiler(struct panfrost_batch *batch,
         struct pipe_rasterizer_state *rast = &ctx->rasterizer->base;
 
         void *section = pan_section_ptr(job, TILER_JOB, INVOCATION);
-        memcpy(section, invocation_template, pan_size(INVOCATION));
+        memcpy(section, invocation_template, MALI_INVOCATION_LENGTH);
 
         section = pan_section_ptr(job, TILER_JOB, PRIMITIVE);
         pan_pack(section, PRIMITIVE, cfg) {
@@ -2993,10 +2959,10 @@ panfrost_indirect_draw(struct panfrost_batch *batch,
         }
 
         batch->indirect_draw_job_id =
-                GENX(panfrost_emit_indirect_draw)(&batch->pool.base,
-                                                  &batch->scoreboard,
-                                                  &draw_info,
-                                                  &batch->indirect_draw_ctx);
+                panfrost_emit_indirect_draw(&batch->pool.base,
+                                            &batch->scoreboard,
+                                            &draw_info,
+                                            &batch->indirect_draw_ctx);
 
         panfrost_emit_vertex_tiler_jobs(batch, &vertex, &tiler);
 }
@@ -3186,9 +3152,9 @@ panfrost_launch_grid(struct pipe_context *pipe,
                         },
                 };
 
-                indirect_dep = GENX(pan_indirect_dispatch_emit)(&batch->pool.base,
-                                                                &batch->scoreboard,
-                                                                &indirect);
+                indirect_dep = pan_indirect_dispatch_emit(&batch->pool.base,
+                                                          &batch->scoreboard,
+                                                          &indirect);
         }
 
         panfrost_add_job(&batch->pool.base, &batch->scoreboard,
@@ -3493,8 +3459,7 @@ prepare_rsd(struct panfrost_device *dev,
             struct panfrost_shader_state *state,
             struct panfrost_pool *pool, bool upload)
 {
-        struct mali_renderer_state_packed *out =
-                (struct mali_renderer_state_packed *)&state->partial_rsd;
+        struct mali_renderer_state_packed *out = &state->partial_rsd;
 
         if (upload) {
                 struct panfrost_ptr ptr =
@@ -3527,8 +3492,6 @@ screen_destroy(struct pipe_screen *pscreen)
 {
         struct panfrost_device *dev = pan_device(pscreen);
         pan_blitter_cleanup(dev);
-        GENX(panfrost_cleanup_indirect_draw_shaders)(dev);
-        GENX(pan_indirect_dispatch_cleanup)(dev);
 }
 
 static void
@@ -3563,18 +3526,6 @@ init_batch(struct panfrost_batch *batch)
 }
 
 static void
-panfrost_sampler_view_destroy(
-        struct pipe_context *pctx,
-        struct pipe_sampler_view *pview)
-{
-        struct panfrost_sampler_view *view = (struct panfrost_sampler_view *) pview;
-
-        pipe_resource_reference(&pview->texture, NULL);
-        panfrost_bo_unreference(view->state.bo);
-        ralloc_free(view);
-}
-
-static void
 context_init(struct pipe_context *pipe)
 {
         pipe->draw_vbo           = panfrost_draw_vbo;
@@ -3584,71 +3535,10 @@ context_init(struct pipe_context *pipe)
         pipe->create_rasterizer_state = panfrost_create_rasterizer_state;
         pipe->create_depth_stencil_alpha_state = panfrost_create_depth_stencil_state;
         pipe->create_sampler_view = panfrost_create_sampler_view;
-        pipe->sampler_view_destroy = panfrost_sampler_view_destroy;
         pipe->create_sampler_state = panfrost_create_sampler_state;
         pipe->create_blend_state = panfrost_create_blend_state;
 
         pipe->get_sample_position = panfrost_get_sample_position;
-}
-
-#if PAN_ARCH <= 5
-
-/* Returns the polygon list's GPU address if available, or otherwise allocates
- * the polygon list.  It's perfectly fast to use allocate/free BO directly,
- * since we'll hit the BO cache and this is one-per-batch anyway. */
-
-static mali_ptr
-batch_get_polygon_list(struct panfrost_batch *batch)
-{
-        struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
-
-        if (!batch->tiler_ctx.midgard.polygon_list) {
-                bool has_draws = batch->scoreboard.first_tiler != NULL;
-                unsigned size =
-                        panfrost_tiler_get_polygon_list_size(dev,
-                                                             batch->key.width,
-                                                             batch->key.height,
-                                                             has_draws);
-                size = util_next_power_of_two(size);
-
-                /* Create the BO as invisible if we can. In the non-hierarchical tiler case,
-                 * we need to write the polygon list manually because there's not WRITE_VALUE
-                 * job in the chain (maybe we should add one...). */
-                bool init_polygon_list = !has_draws && (dev->quirks & MIDGARD_NO_HIER_TILING);
-                batch->tiler_ctx.midgard.polygon_list =
-                        panfrost_batch_create_bo(batch, size,
-                                                 init_polygon_list ? 0 : PAN_BO_INVISIBLE,
-                                                 PIPE_SHADER_VERTEX,
-                                                 "Polygon list");
-                panfrost_batch_add_bo(batch, batch->tiler_ctx.midgard.polygon_list,
-                                PIPE_SHADER_FRAGMENT);
-
-                if (init_polygon_list) {
-                        assert(batch->tiler_ctx.midgard.polygon_list->ptr.cpu);
-                        uint32_t *polygon_list_body =
-                                batch->tiler_ctx.midgard.polygon_list->ptr.cpu +
-                                MALI_MIDGARD_TILER_MINIMUM_HEADER_SIZE;
-
-                        /* Magic for Mali T720 */
-                        polygon_list_body[0] = 0xa0000000;
-                }
-
-                batch->tiler_ctx.midgard.disable = !has_draws;
-        }
-
-        return batch->tiler_ctx.midgard.polygon_list->ptr.gpu;
-}
-#endif
-
-static void
-init_polygon_list(struct panfrost_batch *batch)
-{
-#if PAN_ARCH <= 5
-        mali_ptr polygon_list = batch_get_polygon_list(batch);
-        panfrost_scoreboard_initialize_tiler(&batch->pool.base,
-                                             &batch->scoreboard,
-                                             polygon_list);
-#endif
 }
 
 void
@@ -3664,10 +3554,7 @@ GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
         screen->vtbl.preload     = preload;
         screen->vtbl.context_init = context_init;
         screen->vtbl.init_batch = init_batch;
-        screen->vtbl.init_polygon_list = init_polygon_list;
 
         pan_blitter_init(dev, &screen->blitter.bin_pool.base,
                          &screen->blitter.desc_pool.base);
-        GENX(pan_indirect_dispatch_init)(dev);
-        GENX(panfrost_init_indirect_draw_shaders)(dev, &screen->indirect_draw.bin_pool.base);
 }

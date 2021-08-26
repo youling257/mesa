@@ -76,9 +76,6 @@ struct panfrost_vtable {
 
         /* Device-dependent initialization of a panfrost_batch */
         void (*init_batch)(struct panfrost_batch *batch);
-
-        /* Initialize the polygon list */
-        void (*init_polygon_list)(struct panfrost_batch *);
 };
 
 struct panfrost_screen {

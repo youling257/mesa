@@ -26,7 +26,7 @@
 #define __PAN_POOL_H__
 
 #include <stddef.h>
-#include <gen_macros.h>
+#include <midgard_pack.h>
 #include "pan_bo.h"
 
 #include "util/u_dynarray.h"
@@ -93,8 +93,8 @@ struct pan_desc_alloc_info {
 
 #define PAN_DESC_ARRAY(count, name) \
         { \
-                .size = pan_size(name), \
-                .align = pan_alignment(name), \
+                .size = MALI_ ## name ## _LENGTH, \
+                .align = MALI_ ## name ## _ALIGN, \
                 .nelems = count, \
         }
 

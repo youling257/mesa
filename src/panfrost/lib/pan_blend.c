@@ -32,7 +32,10 @@
 #include "compiler/nir/nir_conversion_builder.h"
 #include "compiler/nir/nir_lower_blend.h"
 
-#include <gen_macros.h>
+/* Blending is shared across all supported Malis with only minor differences,
+ * so pin a particular version */
+#define ARCH 7
+#include <midgard_pack.h>
 
 /* Fixed function blending */
 

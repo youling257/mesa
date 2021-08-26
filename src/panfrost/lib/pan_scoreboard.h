@@ -27,7 +27,7 @@
 #ifndef __PAN_SCOREBOARD_H__
 #define __PAN_SCOREBOARD_H__
 
-#include "gen_macros.h"
+#include "midgard_pack.h"
 #include "pan_pool.h"
 
 struct pan_scoreboard {
