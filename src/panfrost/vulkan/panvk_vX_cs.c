@@ -620,7 +620,7 @@ panvk_per_arch(emit_blend)(const struct panvk_device *dev,
 
       cfg.srgb = util_format_is_srgb(rts->format);
       cfg.load_destination = pan_blend_reads_dest(blend->rts[rt].equation);
-      cfg.round_to_fb_precision = !dithered;
+      cfg.round_to_fb_precision = dithered;
 
 #if PAN_ARCH <= 5
       cfg.midgard.blend_shader = false;
@@ -635,7 +635,7 @@ panvk_per_arch(emit_blend)(const struct panvk_device *dev,
          util_format_description(rts->format);
       unsigned chan_size = 0;
       for (unsigned i = 0; i < format_desc->nr_channels; i++)
-         chan_size = MAX2(format_desc->channel[i].size, chan_size);
+         chan_size = MAX2(format_desc->channel[0].size, chan_size);
 
       pan_blend_to_fixed_function_equation(blend->rts[rt].equation,
                                            &cfg.bifrost.equation);
@@ -747,13 +747,7 @@ panvk_per_arch(emit_base_fs_rsd)(const struct panvk_device *dev,
          cfg.properties.midgard.shader_contains_discard =
             zs_enabled && info->fs.can_discard;
 #else
-         uint8_t rt_written = pipeline->fs.info.outputs_written >> FRAG_RESULT_DATA0;
-         uint8_t rt_mask = pipeline->fs.rt_mask;
-         cfg.properties.bifrost.allow_forward_pixel_to_kill =
-                 pipeline->fs.info.fs.can_fpk &&
-                 !(rt_mask & ~rt_written) &&
-                 !pipeline->ms.alpha_to_coverage &&
-                 !pipeline->blend.reads_dest;
+         cfg.properties.bifrost.allow_forward_pixel_to_kill = info->fs.can_fpk;
 #endif
       } else {
 #if PAN_ARCH == 5

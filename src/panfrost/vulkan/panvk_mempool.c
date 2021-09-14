@@ -43,23 +43,20 @@
 static struct panfrost_bo *
 panvk_pool_alloc_backing(struct panvk_pool *pool, size_t bo_sz)
 {
-   struct panfrost_bo *bo;
-
    /* If there's a free BO in our BO pool, let's pick it. */
    if (pool->bo_pool &&
-       util_dynarray_num_elements(&pool->bo_pool->free_bos, struct panfrost_bo *)) {
-      bo = util_dynarray_pop(&pool->bo_pool->free_bos, struct panfrost_bo *);
-   } else {
-      /* We don't know what the BO will be used for, so let's flag it
-       * RW and attach it to both the fragment and vertex/tiler jobs.
-       * TODO: if we want fine grained BO assignment we should pass
-       * flags to this function and keep the read/write,
-       * fragment/vertex+tiler pools separate.
-       */
-      bo = panfrost_bo_create(pool->base.dev, bo_sz,
-                              pool->base.create_flags,
-                              pool->base.label);
-   }
+       util_dynarray_num_elements(&pool->bo_pool->free_bos, struct panfrost_bo *))
+      return util_dynarray_pop(&pool->bo_pool->free_bos, struct panfrost_bo *);
+
+   /* We don't know what the BO will be used for, so let's flag it
+    * RW and attach it to both the fragment and vertex/tiler jobs.
+    * TODO: if we want fine grained BO assignment we should pass
+    * flags to this function and keep the read/write,
+    * fragment/vertex+tiler pools separate.
+    */
+   struct panfrost_bo *bo = panfrost_bo_create(pool->base.dev, bo_sz,
+                                               pool->base.create_flags,
+                                               pool->base.label);
 
    util_dynarray_append(&pool->bos, struct panfrost_bo *, bo);
    pool->transient_bo = bo;
@@ -127,7 +124,6 @@ panvk_pool_reset(struct panvk_pool *pool)
    }
 
    util_dynarray_clear(&pool->bos);
-   pool->transient_bo = NULL;
 }
 
 void

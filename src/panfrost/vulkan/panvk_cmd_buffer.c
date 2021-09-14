@@ -208,9 +208,8 @@ panvk_CmdSetBlendConstants(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
 
-   for (unsigned i = 0; i < 4; i++)
-      cmdbuf->state.blend.constants[i] = CLAMP(blendConstants[i], 0.0f, 1.0f);
-
+   memcpy(cmdbuf->state.blend.constants, blendConstants,
+          sizeof(cmdbuf->state.blend.constants));
    cmdbuf->state.dirty |= PANVK_DYNAMIC_BLEND_CONSTANTS;
    cmdbuf->state.fs_rsd = 0;
 }
@@ -326,17 +325,10 @@ panvk_cmd_prepare_clear_values(struct panvk_cmd_buffer *cmdbuf,
               attachment->stencil_load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
              cmdbuf->state.clear[i].depth = in[i].depthStencil.depth;
              cmdbuf->state.clear[i].stencil = in[i].depthStencil.stencil;
-          } else {
-             cmdbuf->state.clear[i].depth = 0;
-             cmdbuf->state.clear[i].stencil = 0;
           }
-       } else {
-          if (attachment->load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
-             union pipe_color_union *col = (union pipe_color_union *) &in[i].color;
-             pan_pack_color(cmdbuf->state.clear[i].color, col, fmt, false);
-          } else {
-             memset(cmdbuf->state.clear[i].color, 0, sizeof(cmdbuf->state.clear[0].color));
-          }
+       } else if (attachment->load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+          union pipe_color_union *col = (union pipe_color_union *) &in[i].color;
+          pan_pack_color(cmdbuf->state.clear[i].color, col, fmt, false);
        }
    }
 }

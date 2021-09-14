@@ -301,12 +301,8 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    }
 
    device->master_fd = master_fd;
-   if (instance->debug_flags & PANVK_DEBUG_TRACE)
-      device->pdev.debug |= PAN_DBG_TRACE;
-
-   device->pdev.debug |= PAN_DBG_NO_CACHE;
+   device->pdev.debug = PAN_DBG_TRACE;
    panfrost_open_device(NULL, fd, &device->pdev);
-   fd = -1;
 
    if (device->pdev.quirks & MIDGARD_SFBD) {
       result = vk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
@@ -323,7 +319,7 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    if (panvk_device_get_cache_uuid(device->pdev.gpu_id, device->cache_uuid)) {
       result = vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
                          "cannot generate UUID");
-      goto fail_close_device;
+      goto fail;
    }
 
    fprintf(stderr, "WARNING: panvk is not a conformant vulkan implementation, "
@@ -335,16 +331,13 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    result = panvk_wsi_init(device);
    if (result != VK_SUCCESS) {
       vk_error(instance, result);
-      goto fail_close_device;
+      goto fail;
    }
 
    return VK_SUCCESS;
 
-fail_close_device:
-   panfrost_close_device(&device->pdev);
 fail:
-   if (fd != -1)
-      close(fd);
+   close(fd);
    if (master_fd != -1)
       close(master_fd);
    return result;
@@ -700,8 +693,7 @@ panvk_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   VkSampleCountFlags sample_counts =
-      VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
+   VkSampleCountFlags sample_counts = 0xf;
 
    /* make sure that the entire descriptor set is addressable with a signed
     * 32-bit int. So the sum of all limits scaled by descriptor size has to
@@ -1416,6 +1408,7 @@ panvk_BindImageMemory2(VkDevice device,
       VK_FROM_HANDLE(panvk_device_memory, mem, pBindInfos[i].memory);
 
       if (mem) {
+         panfrost_bo_reference(mem->bo);
          image->pimage.data.bo = mem->bo;
          image->pimage.data.offset = pBindInfos[i].memoryOffset;
          /* Reset the AFBC headers */
@@ -1432,6 +1425,7 @@ panvk_BindImageMemory2(VkDevice device,
             }
          }
       } else {
+         panfrost_bo_unreference(image->pimage.data.bo);
          image->pimage.data.bo = NULL;
          image->pimage.data.offset = pBindInfos[i].memoryOffset;
       }

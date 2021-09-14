@@ -544,7 +544,7 @@ struct panvk_cmd_state {
    mali_ptr fs_rsd;
 
    struct {
-      float constants[4];
+      float constants[8][4];
    } blend;
 
    struct {
@@ -735,7 +735,6 @@ struct panvk_pipeline {
       uint32_t rsd_template[RSD_WORDS];
       bool required;
       bool dynamic_rsd;
-      uint8_t rt_mask;
    } fs;
 
    struct {
@@ -789,7 +788,6 @@ struct panvk_pipeline {
          uint8_t index;
          uint16_t bifrost_factor;
       } constant[8];
-      bool reads_dest;
    } blend;
 
    VkViewport viewport;
