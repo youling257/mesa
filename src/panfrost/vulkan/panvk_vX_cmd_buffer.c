@@ -43,12 +43,15 @@
 static void
 panvk_cmd_prepare_fragment_job(struct panvk_cmd_buffer *cmdbuf)
 {
-   const struct pan_fb_info *fbinfo = &cmdbuf->state.fb.info;
+   assert(cmdbuf->state.bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS);
+
    struct panvk_batch *batch = cmdbuf->state.batch;
    struct panfrost_ptr job_ptr =
       pan_pool_alloc_desc(&cmdbuf->desc_pool.base, FRAGMENT_JOB);
 
-   GENX(pan_emit_fragment_job)(fbinfo, batch->fb.desc.gpu, job_ptr.cpu),
+   panvk_per_arch(emit_fragment_job)(cmdbuf->state.framebuffer,
+                                     cmdbuf->state.batch->fb.desc.gpu,
+                                     job_ptr.cpu);
    cmdbuf->state.batch->fragment_job = job_ptr.gpu;
    util_dynarray_append(&batch->jobs, void *, job_ptr.cpu);
 }
@@ -95,14 +98,14 @@ panvk_per_arch(cmd_get_polygon_list)(struct panvk_cmd_buffer *cmdbuf,
 static void
 panvk_copy_fb_desc(struct panvk_cmd_buffer *cmdbuf, void *src)
 {
-   const struct pan_fb_info *fbinfo = &cmdbuf->state.fb.info;
    struct panvk_batch *batch = cmdbuf->state.batch;
+   const struct panvk_subpass *subpass = cmdbuf->state.subpass;
    uint32_t size = pan_size(MULTI_TARGET_FRAMEBUFFER);
 
-   if (fbinfo->zs.view.zs || fbinfo->zs.view.s)
+   if (subpass->zs_attachment.idx != VK_ATTACHMENT_UNUSED)
       size += pan_size(ZS_CRC_EXTENSION);
 
-   size += MAX2(fbinfo->rt_count, 1) * pan_size(RENDER_TARGET);
+   size += MAX2(subpass->color_count, 1) * pan_size(RENDER_TARGET);
 
    memcpy(batch->fb.desc.cpu, src, size);
 }
@@ -112,7 +115,6 @@ void
 panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
 {
    struct panvk_batch *batch = cmdbuf->state.batch;
-   const struct pan_fb_info *fbinfo = &cmdbuf->state.fb.info;
 #if PAN_ARCH <= 5
    uint32_t tmp_fbd[(pan_size(MULTI_TARGET_FRAMEBUFFER) +
                      pan_size(ZS_CRC_EXTENSION) +
@@ -121,11 +123,7 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
 
    assert(batch);
 
-   bool clear = fbinfo->zs.clear.z | fbinfo->zs.clear.s;
-   for (unsigned i = 0; i < fbinfo->rt_count; i++)
-      clear |= fbinfo->rts[i].clear;
-
-   if (!clear && !batch->scoreboard.first_job) {
+   if (!batch->fragment_job && !batch->scoreboard.first_job) {
       if (util_dynarray_num_elements(&batch->event_ops, struct panvk_event_op) == 0) {
          /* Content-less batch, let's drop it */
          vk_free(&cmdbuf->pool->alloc, batch);
@@ -148,18 +146,6 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
    struct panfrost_device *pdev = &cmdbuf->device->physical_device->pdev;
 
    list_addtail(&cmdbuf->state.batch->node, &cmdbuf->batches);
-
-   if (batch->scoreboard.first_tiler) {
-      struct panfrost_ptr preload_jobs[2];
-      unsigned num_preload_jobs =
-         GENX(pan_preload_fb)(&cmdbuf->desc_pool.base, &batch->scoreboard,
-                              &cmdbuf->state.fb.info,
-                              PAN_ARCH >= 6 ? batch->tls.gpu : batch->fb.desc.gpu,
-                              PAN_ARCH >= 6 ? batch->tiler.descs.gpu : 0,
-                              preload_jobs);
-      for (unsigned i = 0; i < num_preload_jobs; i++)
-         util_dynarray_append(&batch->jobs, void *, preload_jobs[i].cpu);
-   }
 
    struct pan_tls_info tlsinfo = { 0 };
 
@@ -188,8 +174,8 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
    if (cmdbuf->state.batch->fb.desc.cpu) {
 #if PAN_ARCH == 5
       panvk_per_arch(cmd_get_polygon_list)(cmdbuf,
-                                           fbinfo->width,
-                                           fbinfo->height,
+                                           batch->fb.info->width,
+                                           batch->fb.info->height,
                                            false);
 
       mali_ptr polygon_list =
@@ -209,8 +195,13 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
 #endif
 
       cmdbuf->state.batch->fb.desc.gpu |=
-         GENX(pan_emit_fbd)(pdev, &cmdbuf->state.fb.info, &tlsinfo,
-                            &cmdbuf->state.batch->tiler.ctx, fbd);
+         panvk_per_arch(emit_fb)(cmdbuf->device,
+                                 cmdbuf->state.batch,
+                                 cmdbuf->state.subpass,
+                                 cmdbuf->state.framebuffer,
+                                 cmdbuf->state.clear,
+                                 &tlsinfo, &cmdbuf->state.batch->tiler.ctx,
+                                 fbd);
 
 #if PAN_ARCH <= 5
       panvk_copy_fb_desc(cmdbuf, tmp_fbd);
@@ -235,7 +226,6 @@ panvk_per_arch(CmdNextSubpass2)(VkCommandBuffer commandBuffer,
    panvk_per_arch(cmd_close_batch)(cmdbuf);
 
    cmdbuf->state.subpass++;
-   panvk_cmd_fb_info_set_subpass(cmdbuf);
    panvk_cmd_open_batch(cmdbuf);
    memset(&cmdbuf->state.compute, 0, sizeof(cmdbuf->state.compute));
 }
@@ -262,8 +252,8 @@ panvk_per_arch(cmd_alloc_fb_desc)(struct panvk_cmd_buffer *cmdbuf)
    if (batch->fb.desc.gpu)
       return;
 
-   const struct pan_fb_info *fbinfo = &cmdbuf->state.fb.info;
-   bool has_zs_ext = fbinfo->zs.view.zs || fbinfo->zs.view.s;
+   const struct panvk_subpass *subpass = cmdbuf->state.subpass;
+   bool has_zs_ext = subpass->zs_attachment.idx != VK_ATTACHMENT_UNUSED;
    unsigned tags = MALI_FBD_TAG_IS_MFBD;
 
    batch->fb.info = cmdbuf->state.framebuffer;
@@ -271,19 +261,14 @@ panvk_per_arch(cmd_alloc_fb_desc)(struct panvk_cmd_buffer *cmdbuf)
       pan_pool_alloc_desc_aggregate(&cmdbuf->desc_pool.base,
                                     PAN_DESC(MULTI_TARGET_FRAMEBUFFER),
                                     PAN_DESC_ARRAY(has_zs_ext ? 1 : 0, ZS_CRC_EXTENSION),
-                                    PAN_DESC_ARRAY(MAX2(fbinfo->rt_count, 1), RENDER_TARGET));
+                                    PAN_DESC_ARRAY(MAX2(subpass->color_count, 1), RENDER_TARGET));
 
    /* Tag the pointer */
    batch->fb.desc.gpu |= tags;
-
-#if PAN_ARCH >= 6
-   memset(&cmdbuf->state.fb.info.bifrost.pre_post.dcds, 0,
-          sizeof(cmdbuf->state.fb.info.bifrost.pre_post.dcds));
-#endif
 }
 
 void
-panvk_per_arch(cmd_alloc_tls_desc)(struct panvk_cmd_buffer *cmdbuf, bool gfx)
+panvk_per_arch(cmd_alloc_tls_desc)(struct panvk_cmd_buffer *cmdbuf)
 {
    struct panvk_batch *batch = cmdbuf->state.batch;
 
@@ -291,7 +276,8 @@ panvk_per_arch(cmd_alloc_tls_desc)(struct panvk_cmd_buffer *cmdbuf, bool gfx)
    if (batch->tls.gpu)
       return;
 
-   if (PAN_ARCH == 5 && gfx) {
+   if (PAN_ARCH == 5 &&
+       cmdbuf->state.bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
       panvk_per_arch(cmd_alloc_fb_desc)(cmdbuf);
       batch->tls = batch->fb.desc;
       batch->tls.gpu &= ~63ULL;
@@ -522,30 +508,23 @@ panvk_per_arch(cmd_get_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
 }
 #endif
 
-void
-panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf)
-{
-   const struct pan_fb_info *fbinfo = &cmdbuf->state.fb.info;
-
-#if PAN_ARCH == 5
-   panvk_per_arch(cmd_get_polygon_list)(cmdbuf,
-                                        fbinfo->width,
-                                        fbinfo->height,
-                                        true);
-#else
-   panvk_per_arch(cmd_get_tiler_context)(cmdbuf,
-                                         fbinfo->width,
-                                         fbinfo->height);
-#endif
-}
-
 static void
 panvk_draw_prepare_tiler_context(struct panvk_cmd_buffer *cmdbuf,
                                  struct panvk_draw_info *draw)
 {
    struct panvk_batch *batch = cmdbuf->state.batch;
 
-   panvk_per_arch(cmd_prepare_tiler_context)(cmdbuf);
+#if PAN_ARCH == 5
+   panvk_per_arch(cmd_get_polygon_list)(cmdbuf,
+                                        batch->fb.info->width,
+                                        batch->fb.info->height,
+                                        true);
+#else
+   panvk_per_arch(cmd_get_tiler_context)(cmdbuf,
+                                         batch->fb.info->width,
+                                         batch->fb.info->height);
+#endif
+
    draw->tiler_ctx = &batch->tiler.ctx;
 }
 
@@ -706,7 +685,6 @@ panvk_per_arch(CmdDraw)(VkCommandBuffer commandBuffer,
     */
    if (batch->scoreboard.job_index >= (UINT16_MAX - 3)) {
       panvk_per_arch(cmd_close_batch)(cmdbuf);
-      panvk_cmd_preload_fb_after_batch_split(cmdbuf);
       panvk_cmd_open_batch(cmdbuf);
       batch = cmdbuf->state.batch;
    }
@@ -714,7 +692,7 @@ panvk_per_arch(CmdDraw)(VkCommandBuffer commandBuffer,
    if (cmdbuf->state.pipeline->fs.required)
       panvk_per_arch(cmd_alloc_fb_desc)(cmdbuf);
 
-   panvk_per_arch(cmd_alloc_tls_desc)(cmdbuf, true);
+   panvk_per_arch(cmd_alloc_tls_desc)(cmdbuf);
    panvk_cmd_prepare_ubos(cmdbuf);
    panvk_cmd_prepare_textures(cmdbuf);
    panvk_cmd_prepare_samplers(cmdbuf);
@@ -824,7 +802,6 @@ panvk_per_arch(CmdPipelineBarrier)(VkCommandBuffer commandBuffer,
     */
    if (cmdbuf->state.batch) {
       panvk_per_arch(cmd_close_batch)(cmdbuf);
-      panvk_cmd_preload_fb_after_batch_split(cmdbuf);
       panvk_cmd_open_batch(cmdbuf);
    }
 }
@@ -856,7 +833,6 @@ panvk_add_set_event_operation(struct panvk_cmd_buffer *cmdbuf,
                            struct panvk_event_op,
                            op);
       panvk_per_arch(cmd_close_batch)(cmdbuf);
-      panvk_cmd_preload_fb_after_batch_split(cmdbuf);
       panvk_cmd_open_batch(cmdbuf);
    }
 }
@@ -883,7 +859,6 @@ panvk_add_wait_event_operation(struct panvk_cmd_buffer *cmdbuf,
       if (cmdbuf->state.batch->fragment_job ||
           cmdbuf->state.batch->scoreboard.first_job) {
          panvk_per_arch(cmd_close_batch)(cmdbuf);
-         panvk_cmd_preload_fb_after_batch_split(cmdbuf);
          panvk_cmd_open_batch(cmdbuf);
       }
       util_dynarray_append(&cmdbuf->state.batch->event_ops,

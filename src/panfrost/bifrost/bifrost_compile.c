@@ -1097,8 +1097,6 @@ bi_emit_ld_tile(bi_builder *b, nir_intrinsic_instr *instr)
 
         bi_index desc = b->shader->inputs->is_blend ?
                 bi_imm_u32(b->shader->inputs->blend.bifrost_blend_desc >> 32) :
-                b->shader->inputs->bifrost.static_rt_conv ?
-                bi_imm_u32(b->shader->inputs->bifrost.rt_conv[rt]) :
                 bi_load_sysval(b, PAN_SYSVAL(RT_CONVERSION, rt | (size << 4)), 1, 0);
 
         bi_ld_tile_to(b, bi_dest_index(&instr->dest), bi_pixel_indices(b, rt),
@@ -1466,8 +1464,8 @@ bi_alu_src_index(nir_alu_src src, unsigned comps)
         } else if (bitsize == 8) {
                 /* 8-bit vectors not yet supported */
                 assert(comps == 1 && "8-bit vectors not supported");
-                assert(src.swizzle[0] < 4 && "8-bit vectors not supported");
-                idx.swizzle = BI_SWIZZLE_B0000 + src.swizzle[0];
+                assert(src.swizzle[0] == 0 && "8-bit vectors not supported");
+                idx.swizzle = BI_SWIZZLE_B0000;
         }
 
         return idx;

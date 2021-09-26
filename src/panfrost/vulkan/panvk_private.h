@@ -129,20 +129,6 @@ panvk_logi_v(const char *format, va_list va);
 
 #define panvk_stub() assert(!"stub")
 
-#define PANVK_META_COPY_BUF2IMG_NUM_FORMATS 12
-#define PANVK_META_COPY_IMG2BUF_NUM_FORMATS 12
-#define PANVK_META_COPY_IMG2IMG_NUM_FORMATS 14
-#define PANVK_META_COPY_NUM_TEX_TYPES 5
-#define PANVK_META_COPY_BUF2BUF_NUM_BLKSIZES 5
-
-static inline unsigned
-panvk_meta_copy_tex_type(unsigned dim, bool isarray)
-{
-   assert(dim > 0 && dim <= 3);
-   assert(dim < 3 || !isarray);
-   return (((dim - 1) << 1) | (isarray ? 1 : 0));
-}
-
 struct panvk_meta {
    struct panvk_pool bin_pool;
    struct panvk_pool desc_pool;
@@ -160,28 +146,6 @@ struct panvk_meta {
       mali_ptr shader;
       struct pan_shader_info shader_info;
    } clear_attachment[MAX_RTS][3]; /* 3 base types */
-
-   struct {
-      struct {
-         mali_ptr rsd;
-         struct panfrost_ubo_push pushmap;
-      } buf2img[PANVK_META_COPY_BUF2IMG_NUM_FORMATS];
-      struct {
-         mali_ptr rsd;
-         struct panfrost_ubo_push pushmap;
-      } img2buf[PANVK_META_COPY_NUM_TEX_TYPES][PANVK_META_COPY_IMG2BUF_NUM_FORMATS];
-      struct {
-         mali_ptr rsd;
-      } img2img[PANVK_META_COPY_NUM_TEX_TYPES][PANVK_META_COPY_IMG2IMG_NUM_FORMATS];
-      struct {
-         mali_ptr rsd;
-         struct panfrost_ubo_push pushmap;
-      } buf2buf[PANVK_META_COPY_BUF2BUF_NUM_BLKSIZES];
-      struct {
-         mali_ptr rsd;
-         struct panfrost_ubo_push pushmap;
-      } fillbuf;
-   } copy;
 };
 
 struct panvk_physical_device {
@@ -621,11 +585,6 @@ struct panvk_cmd_state {
       } s_front, s_back;
    } zs;
 
-   struct {
-      struct pan_fb_info info;
-      bool crc_valid[MAX_RTS];
-   } fb;
-
    const struct panvk_render_pass *pass;
    const struct panvk_subpass *subpass;
    const struct panvk_framebuffer *framebuffer;
@@ -689,15 +648,6 @@ struct panvk_cmd_buffer {
 
 void
 panvk_cmd_open_batch(struct panvk_cmd_buffer *cmdbuf);
-
-void
-panvk_cmd_fb_info_set_subpass(struct panvk_cmd_buffer *cmdbuf);
-
-void
-panvk_cmd_fb_info_init(struct panvk_cmd_buffer *cmdbuf);
-
-void
-panvk_cmd_preload_fb_after_batch_split(struct panvk_cmd_buffer *cmdbuf);
 
 void
 panvk_pack_color(struct panvk_clear_value *out,
@@ -968,7 +918,6 @@ struct panvk_subpass_attachment {
    uint32_t idx;
    VkImageLayout layout;
    bool clear;
-   bool preload;
 };
 
 struct panvk_subpass {
@@ -994,7 +943,7 @@ struct panvk_render_pass_attachment {
    VkImageLayout initial_layout;
    VkImageLayout final_layout;
    unsigned view_mask;
-   unsigned first_used_in_subpass;
+   unsigned clear_subpass;
 };
 
 struct panvk_render_pass {

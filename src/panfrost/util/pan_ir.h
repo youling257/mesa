@@ -133,13 +133,6 @@ struct panfrost_compile_inputs {
         enum pipe_format rt_formats[8];
         uint8_t raw_fmt_mask;
         unsigned nr_cbufs;
-
-        union {
-                struct {
-                        bool static_rt_conv;
-                        uint32_t rt_conv[8];
-                } bifrost;
-        };
 };
 
 struct pan_shader_varying {
