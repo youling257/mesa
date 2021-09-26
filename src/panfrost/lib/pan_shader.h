@@ -33,17 +33,16 @@
 
 struct panfrost_device;
 
-#ifdef PAN_ARCH
 const nir_shader_compiler_options *
-GENX(pan_shader_get_compiler_options)(void);
+pan_shader_get_compiler_options(const struct panfrost_device *dev);
 
 void
-GENX(pan_shader_compile)(nir_shader *nir,
-                         const struct panfrost_compile_inputs *inputs,
-                         struct util_dynarray *binary,
-                         struct pan_shader_info *info);
+pan_shader_compile(const struct panfrost_device *dev,
+                   nir_shader *nir,
+                   const struct panfrost_compile_inputs *inputs,
+                   struct util_dynarray *binary,
+                   struct pan_shader_info *info);
 
-#if PAN_ARCH <= 5
 static inline void
 pan_shader_prepare_midgard_rsd(const struct pan_shader_info *info,
                                struct MALI_RENDERER_STATE *rsd)
@@ -67,8 +66,6 @@ pan_shader_prepare_midgard_rsd(const struct pan_shader_info *info,
                         info->fs.early_fragment_tests;
         }
 }
-
-#else
 
 /* Classify a shader into the following pixel kill categories:
  *
@@ -115,18 +112,19 @@ pan_shader_classify_pixel_kill_coverage(const struct pan_shader_info *info,
 #undef SET_PIXEL_KILL
 
 static inline void
-pan_shader_prepare_bifrost_rsd(const struct pan_shader_info *info,
+pan_shader_prepare_bifrost_rsd(const struct panfrost_device *dev,
+                               const struct pan_shader_info *info,
                                struct MALI_RENDERER_STATE *rsd)
 {
         unsigned fau_count = DIV_ROUND_UP(info->push.count, 2);
         rsd->preload.uniform_count = fau_count;
 
-#if PAN_ARCH >= 7
-        rsd->properties.bifrost.shader_register_allocation =
-                (info->work_reg_count <= 32) ?
-                MALI_SHADER_REGISTER_ALLOCATION_32_PER_THREAD :
-                MALI_SHADER_REGISTER_ALLOCATION_64_PER_THREAD;
-#endif
+        if (dev->arch == 7) {
+                rsd->properties.bifrost.shader_register_allocation =
+                        (info->work_reg_count <= 32) ?
+                        MALI_SHADER_REGISTER_ALLOCATION_32_PER_THREAD :
+                        MALI_SHADER_REGISTER_ALLOCATION_64_PER_THREAD;
+        }
 
         switch (info->stage) {
         case MESA_SHADER_VERTEX:
@@ -137,10 +135,10 @@ pan_shader_prepare_bifrost_rsd(const struct pan_shader_info *info,
         case MESA_SHADER_FRAGMENT:
                 pan_shader_classify_pixel_kill_coverage(info, rsd);
 
-#if PAN_ARCH >= 7
-                rsd->properties.bifrost.shader_wait_dependency_6 = info->bifrost.wait_6;
-                rsd->properties.bifrost.shader_wait_dependency_7 = info->bifrost.wait_7;
-#endif
+                if (dev->arch > 6) {
+                        rsd->properties.bifrost.shader_wait_dependency_6 = info->bifrost.wait_6;
+                        rsd->properties.bifrost.shader_wait_dependency_7 = info->bifrost.wait_7;
+                }
 
                 rsd->properties.bifrost.allow_forward_pixel_to_be_killed =
                         !info->fs.sidefx;
@@ -179,16 +177,14 @@ pan_shader_prepare_bifrost_rsd(const struct pan_shader_info *info,
         }
 }
 
-#endif
-
 static inline void
-pan_shader_prepare_rsd(const struct pan_shader_info *shader_info,
+pan_shader_prepare_rsd(const struct panfrost_device *dev,
+                       const struct pan_shader_info *shader_info,
                        mali_ptr shader_ptr,
                        struct MALI_RENDERER_STATE *rsd)
 {
-#if PAN_ARCH <= 5
-        shader_ptr |= shader_info->midgard.first_tag;
-#endif
+        if (!pan_is_bifrost(dev))
+                shader_ptr |= shader_info->midgard.first_tag;
 
         rsd->shader.shader = shader_ptr;
         rsd->shader.attribute_count = shader_info->attribute_count;
@@ -215,12 +211,10 @@ pan_shader_prepare_rsd(const struct pan_shader_info *shader_info,
                         shader_info->fs.sample_shading;
         }
 
-#if PAN_ARCH >= 6
-        pan_shader_prepare_bifrost_rsd(shader_info, rsd);
-#else
-        pan_shader_prepare_midgard_rsd(shader_info, rsd);
-#endif
+        if (pan_is_bifrost(dev))
+                pan_shader_prepare_bifrost_rsd(dev, shader_info, rsd);
+        else
+                pan_shader_prepare_midgard_rsd(shader_info, rsd);
 }
-#endif /* PAN_ARCH */
 
 #endif

@@ -296,7 +296,7 @@ panvk_per_arch(shader_create)(struct panvk_device *dev,
                                         module->code_size,
                                         stage, stage_info->pName,
                                         stage_info->pSpecializationInfo,
-                                        GENX(pan_shader_get_compiler_options)());
+                                        pan_shader_get_compiler_options(pdev));
    if (!nir) {
       vk_free2(&dev->vk.alloc, alloc, shader);
       return NULL;
@@ -370,7 +370,7 @@ panvk_per_arch(shader_create)(struct panvk_device *dev,
       .sysval_ubo = sysval_ubo,
    };
 
-   GENX(pan_shader_compile)(nir, &inputs, &shader->binary, &shader->info);
+   pan_shader_compile(pdev, nir, &inputs, &shader->binary, &shader->info);
 
    /* Patch the descriptor count */
    shader->info.ubo_count =

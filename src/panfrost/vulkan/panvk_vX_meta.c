@@ -169,7 +169,7 @@ panvk_meta_clear_attachments_shader(struct panfrost_device *pdev,
                                     struct pan_shader_info *shader_info)
 {
    nir_builder b = nir_builder_init_simple_shader(MESA_SHADER_FRAGMENT,
-                                     GENX(pan_shader_get_compiler_options)(),
+                                     pan_shader_get_compiler_options(pdev),
                                      "panvk_meta_clear_attachment(base_type=%d,rt=%d)",
                                      base_type,
                                      rt);
@@ -198,7 +198,7 @@ panvk_meta_clear_attachments_shader(struct panfrost_device *pdev,
    struct util_dynarray binary;
 
    util_dynarray_init(&binary, NULL);
-   GENX(pan_shader_compile)(b.shader, &inputs, &binary, shader_info);
+   pan_shader_compile(pdev, b.shader, &inputs, &binary, shader_info);
 
    /* Make sure UBO words have been upgraded to push constants */
    assert(shader_info->ubo_count == 1);
@@ -231,7 +231,7 @@ panvk_meta_clear_attachments_emit_rsd(struct panfrost_device *pdev,
    assert(rt == 0);
 
    pan_pack(rsd_ptr.cpu, RENDERER_STATE, cfg) {
-      pan_shader_prepare_rsd(shader_info, shader, &cfg);
+      pan_shader_prepare_rsd(pdev, shader_info, shader, &cfg);
       cfg.properties.depth_source = MALI_DEPTH_SOURCE_FIXED_FUNCTION;
       cfg.multisample_misc.sample_mask = UINT16_MAX;
       cfg.multisample_misc.depth_function = MALI_FUNC_ALWAYS;
@@ -580,15 +580,15 @@ panvk_per_arch(meta_init)(struct panvk_physical_device *dev)
    panvk_pool_init(&dev->meta.blitter.desc_pool, &dev->pdev, NULL,
                    0, 16 * 1024, "panvk_meta blitter descriptor pool",
                    false);
-   GENX(pan_blitter_init)(&dev->pdev, &dev->meta.blitter.bin_pool.base,
-                          &dev->meta.blitter.desc_pool.base);
+   pan_blitter_init(&dev->pdev, &dev->meta.blitter.bin_pool.base,
+                    &dev->meta.blitter.desc_pool.base);
    panvk_meta_clear_attachment_init(dev);
 }
 
 void
 panvk_per_arch(meta_cleanup)(struct panvk_physical_device *dev)
 {
-   GENX(pan_blitter_cleanup)(&dev->pdev);
+   pan_blitter_cleanup(&dev->pdev);
    panvk_pool_cleanup(&dev->meta.blitter.desc_pool);
    panvk_pool_cleanup(&dev->meta.blitter.bin_pool);
    panvk_pool_cleanup(&dev->meta.desc_pool);

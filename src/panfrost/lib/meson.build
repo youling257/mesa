@@ -49,34 +49,18 @@ foreach ver : pixel_format_versions
 endforeach
 
 libpanfrost_per_arch = []
-libpanfrost_decode_per_arch = []
 
 foreach ver : ['4', '5', '6', '7']
   libpanfrost_per_arch += static_library(
     'pan-arch-v' + ver,
     [
-      'pan_blend.c',
-      'pan_blitter.c',
-      'pan_cs.c',
       'pan_indirect_dispatch.c',
       'pan_indirect_draw.c',
-      'pan_shader.c',
-      'pan_texture.c',
     ],
     include_directories : [inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_panfrost_hw],
     c_args : ['-DPAN_ARCH=' + ver],
     gnu_symbol_visibility : 'hidden',
     dependencies : [dep_libdrm, idep_pan_packers, idep_nir],
-  )
-
-  libpanfrost_decode_per_arch += static_library(
-    'pandecode-arch-v' + ver,
-    ['decode.c', pan_packers],
-    include_directories : [inc_include, inc_src, inc_panfrost],
-    dependencies : [dep_libdrm, idep_pan_packers, idep_nir],
-    c_args : [no_override_init_args, '-DPAN_ARCH=' + ver],
-    gnu_symbol_visibility : 'hidden',
-    build_by_default : false,
   )
 endforeach
 
@@ -87,13 +71,22 @@ libpanfrost_lib_files = files(
   'pan_attributes.c',
   'pan_bo.c',
   'pan_blend.c',
+  'pan_blitter.c',
   'pan_clear.c',
+  'pan_cs.c',
   'pan_samples.c',
   'pan_tiler.c',
   'pan_texture.c',
+  'pan_shader.c',
+  'pan_scoreboard.c',
   'pan_scratch.c',
   'pan_props.c',
   'pan_util.c',
+)
+
+libpanfrost_decode_files = files(
+  'decode_common.c',
+  'decode.c',
 )
 
 libpanfrost_lib = static_library(
@@ -109,16 +102,12 @@ libpanfrost_lib = static_library(
 
 libpanfrost_decode = static_library(
   'panfrost_decode',
-  [
-    'decode_common.c',
-    pan_packers
-  ],
+  [libpanfrost_decode_files, pan_packers],
   include_directories : [inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_panfrost],
   dependencies : idep_mesautil,
   c_args : [no_override_init_args],
   gnu_symbol_visibility : 'hidden',
   build_by_default : false,
-  link_with: [libpanfrost_decode_per_arch],
 )
 
 libpanfrost_dep = declare_dependency(

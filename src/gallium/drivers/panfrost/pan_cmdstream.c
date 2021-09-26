@@ -38,7 +38,6 @@
 
 #include "pan_pool.h"
 #include "pan_bo.h"
-#include "pan_blend.h"
 #include "pan_context.h"
 #include "pan_job.h"
 #include "pan_shader.h"
@@ -919,7 +918,7 @@ panfrost_upload_rt_conversion_sysval(struct panfrost_batch *batch,
         if (rt < batch->key.nr_cbufs && batch->key.cbufs[rt]) {
                 enum pipe_format format = batch->key.cbufs[rt]->format;
                 uniform->u[0] =
-                        GENX(pan_blend_get_internal_desc)(dev, format, rt, size, false) >> 32;
+                        pan_blend_get_bifrost_desc(dev, format, rt, size, false) >> 32;
         } else {
                 pan_pack(&uniform->u[0], BIFROST_INTERNAL_CONVERSION, cfg)
                         cfg.memory_format = dev->formats[PIPE_FORMAT_NONE].hw;
@@ -1315,8 +1314,8 @@ panfrost_create_sampler_view_bo(struct panfrost_sampler_view *so,
         };
 
         unsigned size =
-                (PAN_ARCH <= 5 ? pan_size(TEXTURE) : 0) +
-                GENX(panfrost_estimate_texture_payload_size)(&iview);
+                (PAN_ARCH <= 5 ? pan_size(MIDGARD_TEXTURE) : 0) +
+                panfrost_estimate_texture_payload_size(device, &iview);
 
         struct panfrost_ptr payload = pan_pool_alloc_aligned(&ctx->descs.base, size, 64);
         so->state = panfrost_pool_take_ref(&ctx->descs, payload.gpu);
@@ -1328,7 +1327,7 @@ panfrost_create_sampler_view_bo(struct panfrost_sampler_view *so,
                 payload.gpu += pan_size(MIDGARD_TEXTURE);
         }
 
-        GENX(panfrost_new_texture)(device, &iview, tex, &payload);
+        panfrost_new_texture(device, &iview, tex, &payload);
 }
 
 static void
@@ -2348,7 +2347,7 @@ emit_tls(struct panfrost_batch *batch)
         };
 
         assert(batch->tls.cpu);
-        GENX(pan_emit_tls)(&tls, batch->tls.cpu);
+        pan_emit_tls(dev, &tls, batch->tls.cpu);
 }
 
 static void
@@ -2370,8 +2369,8 @@ emit_fbd(struct panfrost_batch *batch, const struct pan_fb_info *fb)
         };
 
         batch->framebuffer.gpu |=
-                GENX(pan_emit_fbd)(dev, fb, &tls, &batch->tiler_ctx,
-                                   batch->framebuffer.cpu);
+                pan_emit_fbd(dev, fb, &tls, &batch->tiler_ctx,
+                             batch->framebuffer.cpu);
 }
 
 /* Mark a surface as written */
@@ -2392,6 +2391,8 @@ panfrost_initialize_surface(struct panfrost_batch *batch,
 static mali_ptr
 emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
 {
+        struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
+
         /* Mark the affected buffers as initialized, since we're writing to it.
          * Also, add the surfaces we're writing to to the batch */
 
@@ -2425,8 +2426,8 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
         struct panfrost_ptr transfer =
                 pan_pool_alloc_desc(&batch->pool.base, FRAGMENT_JOB);
 
-        GENX(pan_emit_fragment_job)(pfb, batch->framebuffer.gpu,
-                                    transfer.cpu);
+        pan_emit_fragment_job(dev, pfb, batch->framebuffer.gpu,
+                              transfer.cpu);
 
         return transfer.gpu;
 }
@@ -2651,14 +2652,14 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         struct panfrost_ptr t =
                 pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
 
-        GENX(pan_emit_tiler_heap)(dev, t.cpu);
+        pan_emit_bifrost_tiler_heap(dev, t.cpu);
 
         mali_ptr heap = t.gpu;
 
         t = pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
-        GENX(pan_emit_tiler_ctx)(dev, batch->key.width, batch->key.height,
-                                 util_framebuffer_get_num_samples(&batch->key),
-                                 heap, t.cpu);
+        pan_emit_bifrost_tiler(dev, batch->key.width, batch->key.height,
+                               util_framebuffer_get_num_samples(&batch->key),
+                               heap, t.cpu);
 
         batch->tiler_ctx.bifrost = t.gpu;
         return batch->tiler_ctx.bifrost;
@@ -3490,7 +3491,8 @@ panfrost_create_blend_state(struct pipe_context *pipe,
 }
 
 static void
-prepare_rsd(struct panfrost_shader_state *state,
+prepare_rsd(struct panfrost_device *dev,
+            struct panfrost_shader_state *state,
             struct panfrost_pool *pool, bool upload)
 {
         struct mali_renderer_state_packed *out =
@@ -3505,7 +3507,8 @@ prepare_rsd(struct panfrost_shader_state *state,
         }
 
         pan_pack(out, RENDERER_STATE, cfg) {
-                pan_shader_prepare_rsd(&state->info, state->bin.gpu, &cfg);
+                pan_shader_prepare_rsd(dev, &state->info, state->bin.gpu,
+                                       &cfg);
         }
 }
 
@@ -3525,16 +3528,16 @@ static void
 screen_destroy(struct pipe_screen *pscreen)
 {
         struct panfrost_device *dev = pan_device(pscreen);
+        pan_blitter_cleanup(dev);
         GENX(panfrost_cleanup_indirect_draw_shaders)(dev);
         GENX(pan_indirect_dispatch_cleanup)(dev);
-        GENX(pan_blitter_cleanup)(dev);
 }
 
 static void
 preload(struct panfrost_batch *batch, struct pan_fb_info *fb)
 {
-        GENX(pan_preload_fb)(&batch->pool.base, &batch->scoreboard, fb, batch->tls.gpu,
-                             PAN_ARCH >= 6 ? batch->tiler_ctx.bifrost : 0);
+        pan_preload_fb(&batch->pool.base, &batch->scoreboard, fb, batch->tls.gpu,
+                       PAN_ARCH >= 6 ? batch->tiler_ctx.bifrost : 0);
 }
 
 static void
@@ -3663,13 +3666,10 @@ GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
         screen->vtbl.preload     = preload;
         screen->vtbl.context_init = context_init;
         screen->vtbl.init_batch = init_batch;
-        screen->vtbl.get_blend_shader = GENX(pan_blend_get_shader_locked);
         screen->vtbl.init_polygon_list = init_polygon_list;
-        screen->vtbl.get_compiler_options = GENX(pan_shader_get_compiler_options);
-        screen->vtbl.compile_shader = GENX(pan_shader_compile);
 
-        GENX(pan_blitter_init)(dev, &screen->blitter.bin_pool.base,
-                               &screen->blitter.desc_pool.base);
+        pan_blitter_init(dev, &screen->blitter.bin_pool.base,
+                         &screen->blitter.desc_pool.base);
         GENX(pan_indirect_dispatch_init)(dev);
         GENX(panfrost_init_indirect_draw_shaders)(dev, &screen->indirect_draw.bin_pool.base);
 }
