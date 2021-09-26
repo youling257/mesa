@@ -101,4 +101,3 @@ if with_clc
   subdir('clc')
 endif
 subdir('glsl')
-subdir('isaspec')

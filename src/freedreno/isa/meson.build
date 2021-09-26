@@ -28,27 +28,30 @@ isa_depend_files = [
   'ir3-cat5.xml',
   'ir3-cat6.xml',
   'ir3-cat7.xml',
+  'isa.py',
 ]
 
-ir3_isa = custom_target(
-  'ir3-isa',
-  input: ['ir3.xml'],
-  output: ['isaspec-isa.h', 'ir3-isa.c', 'ir3-isa.h'],
+ir3_isa_c = custom_target(
+  'ir3-isa.c',
+  input: ['decode.py', 'ir3.xml'],
+  output: 'ir3-isa.c',
   command: [
-    prog_isaspec_decode, '@INPUT@', '@OUTPUT@'
+    prog_python, '@INPUT0@', '@INPUT1@', '@OUTPUT@'
   ],
   depend_files: isa_depend_files,
 )
 
 decode_files = [
-  ir3_isa,
+  ir3_isa_c,
   'isa.h',
+  'decode.h',
+  'decode.c',
 ]
 
 libir3decode = static_library(
   'ir3decode',
   decode_files,
-  dependencies: [idep_mesautil, idep_isaspec_decode],
+  dependencies: idep_mesautil,
   include_directories: [
     inc_include,
     inc_src,
@@ -72,10 +75,10 @@ ir3disasm = executable(
 
 encode_h = custom_target(
   'encode.h',
-  input: ['ir3.xml'],
+  input: ['encode.py', 'ir3.xml'],
   output: 'encode.h',
   command: [
-    prog_isaspec_encode, '@INPUT@', '@OUTPUT@'
+    prog_python, '@INPUT0@', '@INPUT1@', '@OUTPUT@'
   ],
   depend_files: isa_depend_files,
 )

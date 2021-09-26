@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #
 # Copyright © 2020 Google, Inc.
 #
@@ -23,7 +22,6 @@
 
 from mako.template import Template
 from isa import ISA
-import os
 import sys
 
 template = """\
@@ -145,7 +143,7 @@ static const struct isa_case ${case.get_c_name()} = {
             .enums = &${isa.enums[field.type].get_c_name()},
 %      endif
 %      if field.get_c_typename() == 'TYPE_ASSERT':
-            .val.bitset = { ${', '.join(isa.split_bits(field.val))} },
+            .val = ${field.val},
 %      endif
           },
 %   endfor
@@ -162,9 +160,9 @@ static const struct isa_bitset bitset_${bitset.get_c_name()} = {
            .min  = ${bitset.gen_min},
            .max  = ${bitset.gen_max},
        },
-       .match.bitset    = { ${', '.join(isa.split_bits(pattern.match))} },
-       .dontcare.bitset = { ${', '.join(isa.split_bits(pattern.dontcare))} },
-       .mask.bitset     = { ${', '.join(isa.split_bits(pattern.mask))} },
+       .match    = ${hex(pattern.match)},
+       .dontcare = ${hex(pattern.dontcare)},
+       .mask     = ${hex(pattern.mask)},
        .num_cases = ${len(bitset.cases)},
        .cases    = {
 %   for case in bitset.cases:
@@ -191,120 +189,10 @@ const struct isa_bitset *${root.get_c_name()}[] = {
 
 """
 
-header = """\
-/* Copyright (C) 2020 Google, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
-
-#ifndef _${guard}_
-#define _${guard}_
-
-#include <stdint.h>
-#include <util/bitset.h>
-
-#define BITMASK_WORDS BITSET_WORDS(${isa.bitsize})
-
-typedef struct {
-    BITSET_WORD bitset[BITMASK_WORDS];
-} bitmask_t;
-
-
-#define BITSET_FORMAT ${isa.format()}
-#define BITSET_VALUE(v) ${isa.value()}
-
-static inline void
-next_instruction(bitmask_t *instr, BITSET_WORD *start)
-{
-    %for i in range(0, int(isa.bitsize / 32)):
-    instr->bitset[${i}] = *(start + ${i});
-    %endfor
-}
-
-static inline uint64_t
-bitmask_to_uint64_t(bitmask_t mask)
-{
-    return ((uint64_t)mask.bitset[1] << 32) | mask.bitset[0];
-}
-
-static inline bitmask_t
-uint64_t_to_bitmask(uint64_t val)
-{
-    bitmask_t mask = {
-        .bitset[0] = val & 0xffffffff,
-        .bitset[1] = (val >> 32) & 0xffffffff,
-    };
-
-    return mask;
-}
-
-#endif /* _${guard}_ */
-
-"""
-
-glue = """\
-/* Copyright (C) 2020 Google, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
-
-#ifndef _${guard}_
-#define _${guard}_
-
-#include "${isa}"
-
-#endif /* _${guard}_ */
-
-"""
-
 xml = sys.argv[1]
-glue_h = sys.argv[2]
-dst_c = sys.argv[3]
-dst_h = sys.argv[4]
+dst = sys.argv[2]
 
 isa = ISA(xml)
 
-with open(glue_h, 'w') as f:
-    guard = os.path.basename(glue_h).upper().replace("-", "_").replace(".", "_")
-    f.write(Template(glue).render(guard=guard, isa=os.path.basename(dst_h)))
-
-with open(dst_c, 'w') as f:
+with open(dst, 'w') as f:
     f.write(Template(template).render(isa=isa))
-
-with open(dst_h, 'w') as f:
-    guard = os.path.basename(dst_h).upper().replace("-", "_").replace(".", "_")
-    f.write(Template(header).render(isa=isa, guard=guard))

@@ -400,9 +400,6 @@ class ISA(object):
         # Table of all bitsets:
         self.bitsets = {}
 
-        # Max needed bitsize for one instruction
-        self.bitsize = 0
-
         root = ElementTree.parse(xmlpath).getroot()
         self.parse_file(root)
         self.validate_isa()
@@ -438,7 +435,6 @@ class ISA(object):
             if b.size is not None:
                 dbg("toplevel: " + b.name)
                 self.roots[b.name] = b
-                self.bitsize = max(self.bitsize, b.size)
             else:
                 dbg("derived: " + b.name)
             self.bitsets[b.name] = b
@@ -492,40 +488,3 @@ class ISA(object):
         # TODO we should probably be able to look at the contexts where
         # an expression is evaluated and verify that it doesn't have any
         # {VARNAME} references that would be unresolved at evaluation time
-
-    def format(self):
-        ''' Generate format string used by printf(..) and friends '''
-        parts = []
-        words = self.bitsize / 32
-
-        for i in range(int(words)):
-            parts.append('%08x')
-
-        fmt = ''.join(parts)
-
-        return f"\"{fmt[1:]}\""
-
-    def value(self):
-        ''' Generate format values used by printf(..) and friends '''
-        parts = []
-        words = self.bitsize / 32
-
-        for i in range(int(words) - 1, -1, -1):
-            parts.append('v[' + str(i) + ']')
-
-        return ', '.join(parts)
-
-    def split_bits(self, value):
-        ''' Split `value` into a list of 32-bit integers '''
-        mask, parts = (1 << 32) - 1, []
-        words = self.bitsize / 32
-
-        while value:
-            parts.append(hex(value & mask))
-            value >>= 32
-
-        # Add 'missing' words
-        while len(parts) < words:
-            parts.append('0x0')
-
-        return parts

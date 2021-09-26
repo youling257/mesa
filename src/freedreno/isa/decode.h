@@ -24,7 +24,6 @@
 #ifndef _DECODE_H_
 #define _DECODE_H_
 
-#include <isaspec-isa.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -33,6 +32,13 @@
  */
 
 struct decode_scope;
+
+/* TODO we could maybe make this a uint8_t array, with some helpers, to
+ * support arbitrary sized patterns.. or add AND/OR/SHIFT support to
+ * util/bitset.h?
+ */
+typedef uint64_t bitmask_t;
+
 struct isa_bitset;
 
 /**
@@ -100,7 +106,7 @@ struct isa_field {
 	} type;
 	union {
 		const struct isa_bitset **bitsets;  /* if type==BITSET */
-		bitmask_t val;                      /* if type==ASSERT */
+		uint64_t val;                       /* if type==ASSERT */
 		const struct isa_enum *enums;       /* if type==ENUM */
 		const char *display;                /* if type==BOOL */
 	};

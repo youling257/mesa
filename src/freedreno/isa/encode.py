@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #
 # Copyright © 2020 Google, Inc.
 #
@@ -330,42 +329,10 @@ template = """\
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <util/bitset.h>
 
 <%
 isa = s.isa
 %>
-
-#define BITMASK_WORDS BITSET_WORDS(${isa.bitsize})
-
-typedef struct {
-    BITSET_WORD bitset[BITMASK_WORDS];
-} bitmask_t;
-
-static inline uint64_t
-bitmask_to_uint64_t(bitmask_t mask)
-{
-    return ((uint64_t)mask.bitset[1] << 32) | mask.bitset[0];
-}
-
-static inline bitmask_t
-uint64_t_to_bitmask(uint64_t val)
-{
-    bitmask_t mask = {
-        .bitset[0] = val & 0xffffffff,
-        .bitset[1] = (val >> 32) & 0xffffffff,
-    };
-
-    return mask;
-}
-
-static inline void
-store_instruction(BITSET_WORD *dst, bitmask_t instr)
-{
-%   for i in range(0, int(isa.bitsize / 32)):
-    *(dst + ${i}) = instr.bitset[${i}];
-%   endfor
-}
 
 /**
  * Opaque type from the PoV of generated code, but allows state to be passed
@@ -375,24 +342,11 @@ struct encode_state;
 
 struct bitset_params;
 
-static bitmask_t
+static uint64_t
 pack_field(unsigned low, unsigned high, uint64_t val)
 {
-   bitmask_t field, mask;
-
-   BITSET_ZERO(field.bitset);
-
-   if (!val)
-      return field;
-
-   BITSET_ZERO(mask.bitset);
-   BITSET_SET_RANGE(mask.bitset, 0, high - low);
-
-   field = uint64_t_to_bitmask(val);
-   BITSET_AND(field.bitset, field.bitset, mask.bitset);
-   BITSET_SHL(field.bitset, low);
-
-   return field;
+   val &= ((UINT64_C(1) << (1 + high - low)) - 1);
+   return val << low;
 }
 
 /*
@@ -401,7 +355,7 @@ pack_field(unsigned low, unsigned high, uint64_t val)
  */
 
 %for root in s.encode_roots():
-static bitmask_t encode${root.get_c_name()}(struct encode_state *s, struct bitset_params *p, ${root.encode.type} src);
+static uint64_t encode${root.get_c_name()}(struct encode_state *s, struct bitset_params *p, ${root.encode.type} src);
 %endfor
 
 ## TODO before the expr evaluators, we should generate extract_FOO() for
@@ -444,8 +398,7 @@ ${s.expr_name(leaf.get_root(), expr)}(struct encode_state *s, struct bitset_para
 <% field = s.resolve_simple_field(leaf, fieldname) %>
 %      if field is not None and field.get_c_typename() == 'TYPE_BITSET':
           { ${encode_params(leaf, field)}
-          const bitmask_t tmp = ${s.expr_extractor(leaf, fieldname, '&bp')};
-          ${fieldname} = bitmask_to_uint64_t(tmp);
+          ${fieldname} = ${s.expr_extractor(leaf, fieldname, '&bp')};
           }
 %      else:
           ${fieldname} = ${s.expr_extractor(leaf, fieldname, 'p')};
@@ -504,9 +457,7 @@ ${s.expr_name(leaf.get_root(), expr)}(struct encode_state *s, struct bitset_para
 </%def>
 
 <%def name="encode_bitset(root, leaf)">
-      bitmask_t val = uint64_t_to_bitmask(${hex(leaf.get_pattern().match)});
-      uint64_t fld;
-
+      uint64_t fld, val = ${hex(leaf.get_pattern().match)};
       (void)fld;
 <% visited_exprs = [] %>
 %for case in s.bitset_cases(leaf):
@@ -532,15 +483,12 @@ ${s.expr_name(leaf.get_root(), expr)}(struct encode_state *s, struct bitset_para
            ${case_pre(root, expr)}
 %         if f.field.get_c_typename() == 'TYPE_BITSET':
              { ${encode_params(leaf, f.field)}
-               bitmask_t tmp = encode${isa.roots[f.field.type].get_c_name()}(s, &bp, ${s.extractor(leaf, f.field.name)});
-               fld = bitmask_to_uint64_t(tmp);
-             }
+             fld = encode${isa.roots[f.field.type].get_c_name()}(s, &bp, ${s.extractor(leaf, f.field.name)}); }
 %         else:
              fld = ${s.extractor(leaf, f.field.name)};
 %         endif
-             const bitmask_t packed = pack_field(${f.field.low}, ${f.field.high}, fld);  /* ${f.field.name} */
-             BITSET_OR(val.bitset, val.bitset, packed.bitset);
-             ${case_post(root, expr)}
+          val |= pack_field(${f.field.low}, ${f.field.high}, fld);  /* ${f.field.name} */
+           ${case_post(root, expr)}
 %       endfor
 %   endfor
 
@@ -558,8 +506,7 @@ ${s.expr_name(leaf.get_root(), expr)}(struct encode_state *s, struct bitset_para
           continue
 %>
        ${case_pre(root, expr)}
-       const bitmask_t packed = pack_field(${f.field.low}, ${f.field.high}, ${f.field.val});
-       BITSET_OR(val.bitset, val.bitset, packed.bitset);
+      val |= pack_field(${f.field.low}, ${f.field.high}, ${f.field.val});
        ${case_post(root, None)}
 %   endfor
       {}  /* in case no unconditional field to close out last '} else' */
@@ -574,7 +521,7 @@ ${s.expr_name(leaf.get_root(), expr)}(struct encode_state *s, struct bitset_para
 
 %for root in s.encode_roots():
 
-static bitmask_t
+static uint64_t
 encode${root.get_c_name()}(struct encode_state *s, struct bitset_params *p, ${root.encode.type} src)
 {
 %   if root.encode.case_prefix is not None:
@@ -593,7 +540,7 @@ encode${root.get_c_name()}(struct encode_state *s, struct bitset_params *p, ${ro
       break;
    }
    mesa_loge("Unhandled ${root.name} encode case: 0x%x\\n", ${root.get_c_name()}_case(s, src));
-   return uint64_t_to_bitmask(0);
+   return 0;
 %   else: # single case bitset, no switch
 %      for leaf in s.encode_leafs(root):
        ${encode_bitset(root, leaf)}
