@@ -44,8 +44,8 @@ import re
 #      ... encode field A ...
 #      ... encode field B ...
 #
-#      // Third level - each display field can be potentially resolved
-#      // by multiple different overrides, you can end up with
+#      // Third level - each display field can be resolved in potentially
+#      // resolved by multiple different overrides, you can end up with
 #      // an if/else ladder for an individual display field
 #      if (field_c_case1.expression()) {
 #         ... encode field C ...
@@ -298,6 +298,13 @@ class State(object):
     def expr_name(self, root, expr):
        return root.get_c_name() + '_' + expr.get_c_name()
 
+    def has_jmp(self, instructions):
+        # I'm sure there is some clever more pythony way to do this:
+        for instr in instructions:
+            if instr[0] == 'JMP':
+                return True
+        return False
+
 template = """\
 /* Copyright (C) 2020 Google, Inc.
  *
@@ -411,14 +418,20 @@ struct bitset_params {
 %endfor
 };
 
-## TODO can we share this def between the two templates somehow?
-<%def name="encode_params(leaf, field)">
- struct bitset_params bp = {
-%for param in field.params:
-    .${param[1]} = ${s.expr_extractor(leaf, param[0], 'p')},  /* ${param[0]} */
-%endfor
- };
-</%def>
+#define push(v) do { \
+            assert(sp < ARRAY_SIZE(stack)); \
+            stack[sp] = (v); \
+            sp++; \
+        } while (0)
+#define peek() ({ \
+            assert(sp < ARRAY_SIZE(stack)); \
+            stack[sp - 1]; \
+        })
+#define pop() ({ \
+            assert(sp > 0); \
+            --sp; \
+            stack[sp]; \
+        })
 
 <%def name="render_expr(leaf, expr)">
 static inline int64_t
@@ -461,66 +474,10 @@ ${s.expr_name(leaf.get_root(), expr)}(struct encode_state *s, struct bitset_para
 %   endfor
 %endfor
 
+#undef pop
+#undef peek
+#undef push
 
-/*
- * The actual encoder definitions
- */
-
-%for root in s.encode_roots():
-%   for leaf in s.encode_leafs(root):
-<% snippet = encode_bitset.render(s=s, root=root, leaf=leaf) %>
-%      if snippet not in root.snippets.keys():
-<% snippet_name = "snippet" + root.get_c_name() + "_" + str(len(root.snippets)) %>
-static bitmask_t
-${snippet_name}(struct encode_state *s, struct bitset_params *p, ${root.encode.type} src)
-{
-   bitmask_t val = uint64_t_to_bitmask(0);
-${snippet}
-   return val;
-}
-<% root.snippets[snippet] = snippet_name %>
-%      endif
-%   endfor
-
-static bitmask_t
-encode${root.get_c_name()}(struct encode_state *s, struct bitset_params *p, ${root.encode.type} src)
-{
-%   if root.encode.case_prefix is not None:
-   switch (${root.get_c_name()}_case(s, src)) {
-%      for leaf in s.encode_leafs(root):
-   case ${s.case_name(root, leaf.name)}: {
-<% snippet = encode_bitset.render(s=s, root=root, leaf=leaf) %>
-      bitmask_t val = uint64_t_to_bitmask(${hex(leaf.get_pattern().match)});
-      BITSET_OR(val.bitset, val.bitset, ${root.snippets[snippet]}(s, p, src).bitset);
-      return val;
-    }
-%      endfor
-   default:
-      /* Note that we need the default case, because there are
-       * instructions which we never expect to be encoded, (ie.
-       * meta/macro instructions) as they are removed/replace
-       * in earlier stages of the compiler.
-       */
-      break;
-   }
-   mesa_loge("Unhandled ${root.name} encode case: 0x%x\\n", ${root.get_c_name()}_case(s, src));
-   return uint64_t_to_bitmask(0);
-%   else: # single case bitset, no switch
-%      for leaf in s.encode_leafs(root):
-<% snippet = encode_bitset.render(s=s, root=root, leaf=leaf) %>
-      bitmask_t val = uint64_t_to_bitmask(${hex(leaf.get_pattern().match)});
-      BITSET_OR(val.bitset, val.bitset, ${root.snippets[snippet]}(s, p, src).bitset);
-      return val;
-%      endfor
-%   endif
-}
-%endfor
-"""
-
-encode_bitset_template = """
-<%
-isa = s.isa
-%>
 
 <%def name="case_pre(root, expr)">
 %if expr is not None:
@@ -546,6 +503,8 @@ isa = s.isa
  };
 </%def>
 
+<%def name="encode_bitset(root, leaf)">
+      bitmask_t val = uint64_t_to_bitmask(${hex(leaf.get_pattern().match)});
       uint64_t fld;
 
       (void)fld;
@@ -607,6 +566,43 @@ isa = s.isa
     ${case_post(root, case.expr)}
 %endfor
       return val;
+</%def>
+
+/*
+ * The actual encoder definitions
+ */
+
+%for root in s.encode_roots():
+
+static bitmask_t
+encode${root.get_c_name()}(struct encode_state *s, struct bitset_params *p, ${root.encode.type} src)
+{
+%   if root.encode.case_prefix is not None:
+   switch (${root.get_c_name()}_case(s, src)) {
+%      for leaf in s.encode_leafs(root):
+   case ${s.case_name(root, leaf.name)}: {
+       ${encode_bitset(root, leaf)}
+    }
+%      endfor
+   default:
+      /* Note that we need the default case, because there are
+       * instructions which we never expect to be encoded, (ie.
+       * meta/macro instructions) as they are removed/replace
+       * in earlier stages of the compiler.
+       */
+      break;
+   }
+   mesa_loge("Unhandled ${root.name} encode case: 0x%x\\n", ${root.get_c_name()}_case(s, src));
+   return uint64_t_to_bitmask(0);
+%   else: # single case bitset, no switch
+%      for leaf in s.encode_leafs(root):
+       ${encode_bitset(root, leaf)}
+%      endfor
+%   endif
+}
+
+%endfor
+
 """
 
 xml = sys.argv[1]
@@ -616,4 +612,4 @@ isa = ISA(xml)
 s = State(isa)
 
 with open(dst, 'w') as f:
-    f.write(Template(template).render(s=s, encode_bitset=Template(encode_bitset_template)))
+    f.write(Template(template).render(s=s))
