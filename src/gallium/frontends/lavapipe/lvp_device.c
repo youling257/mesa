@@ -1356,18 +1356,16 @@ queue_thread(void *data, void *gdata, int thread_index)
 }
 
 static VkResult
-lvp_queue_init(struct lvp_device *device, struct lvp_queue *queue,
-               const VkDeviceQueueCreateInfo *create_info,
-               uint32_t index_in_family)
+lvp_queue_init(struct lvp_device *device, struct lvp_queue *queue)
 {
-   VkResult result = vk_queue_init(&queue->vk, &device->vk, create_info,
-                                   index_in_family);
+   VkResult result = vk_queue_init(&queue->vk, &device->vk);
    if (result != VK_SUCCESS)
       return result;
 
    queue->device = device;
 
    simple_mtx_init(&queue->last_lock, mtx_plain);
+   queue->flags = 0;
    queue->timeline = 0;
    queue->ctx = device->pscreen->context_create(device->pscreen, NULL, PIPE_CONTEXT_ROBUST_BUFFER_ACCESS);
    queue->cso = cso_create_context(queue->ctx, CSO_NO_VBUF);
@@ -1440,10 +1438,7 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDevice(
 
    device->pscreen = physical_device->pscreen;
 
-   assert(pCreateInfo->queueCreateInfoCount == 1);
-   assert(pCreateInfo->pQueueCreateInfos[0].queueFamilyIndex == 0);
-   assert(pCreateInfo->pQueueCreateInfos[0].queueCount == 1);
-   lvp_queue_init(device, &device->queue, pCreateInfo->pQueueCreateInfos, 0);
+   lvp_queue_init(device, &device->queue);
 
    *pDevice = lvp_device_to_handle(device);
 
@@ -1501,6 +1496,47 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_EnumerateDeviceLayerProperties(
 
    /* None supported at this time */
    return vk_error(NULL, VK_ERROR_LAYER_NOT_PRESENT);
+}
+
+VKAPI_ATTR void VKAPI_CALL lvp_GetDeviceQueue2(
+   VkDevice                                    _device,
+   const VkDeviceQueueInfo2*                   pQueueInfo,
+   VkQueue*                                    pQueue)
+{
+   LVP_FROM_HANDLE(lvp_device, device, _device);
+   struct lvp_queue *queue;
+
+   queue = &device->queue;
+   if (pQueueInfo->flags != queue->flags) {
+      /* From the Vulkan 1.1.70 spec:
+       *
+       * "The queue returned by vkGetDeviceQueue2 must have the same
+       * flags value from this structure as that used at device
+       * creation time in a VkDeviceQueueCreateInfo instance. If no
+       * matching flags were specified at device creation time then
+       * pQueue will return VK_NULL_HANDLE."
+       */
+      *pQueue = VK_NULL_HANDLE;
+      return;
+   }
+
+   *pQueue = lvp_queue_to_handle(queue);
+}
+
+
+VKAPI_ATTR void VKAPI_CALL lvp_GetDeviceQueue(
+   VkDevice                                    _device,
+   uint32_t                                    queueFamilyIndex,
+   uint32_t                                    queueIndex,
+   VkQueue*                                    pQueue)
+{
+   const VkDeviceQueueInfo2 info = (VkDeviceQueueInfo2) {
+      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
+      .queueFamilyIndex = queueFamilyIndex,
+      .queueIndex = queueIndex
+   };
+
+   lvp_GetDeviceQueue2(_device, &info, pQueue);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL lvp_QueueSubmit(
@@ -1622,8 +1658,15 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_DeviceWaitIdle(
 {
    LVP_FROM_HANDLE(lvp_device, device, _device);
 
-   lvp_QueueWaitIdle(lvp_queue_to_handle(&device->queue));
-
+   util_queue_finish(&device->queue.queue);
+   simple_mtx_lock(&device->queue.last_lock);
+   uint64_t timeline = device->queue.last_fence_timeline;
+   if (device->queue.last_fence) {
+      device->pscreen->fence_finish(device->pscreen, NULL, device->queue.last_fence, PIPE_TIMEOUT_INFINITE);
+      device->pscreen->fence_reference(device->pscreen, &device->queue.last_fence, NULL);
+      device->queue.last_finished = timeline;
+   }
+   simple_mtx_unlock(&device->queue.last_lock);
    return VK_SUCCESS;
 }
 

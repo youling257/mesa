@@ -1081,6 +1081,7 @@ struct anv_queue {
 
    struct anv_device *                       device;
 
+   VkDeviceQueueCreateFlags                  flags;
    const struct anv_queue_family *           family;
 
    uint32_t                                  exec_flags;
@@ -1445,8 +1446,7 @@ VkResult anv_device_wait(struct anv_device *device, struct anv_bo *bo,
 
 VkResult anv_queue_init(struct anv_device *device, struct anv_queue *queue,
                         uint32_t exec_flags,
-                        const VkDeviceQueueCreateInfo *pCreateInfo,
-                        uint32_t index_in_family);
+                        const VkDeviceQueueCreateInfo *pCreateInfo);
 void anv_queue_finish(struct anv_queue *queue);
 
 VkResult anv_queue_execbuf_locked(struct anv_queue *queue, struct anv_queue_submit *submit);

@@ -27,8 +27,6 @@
 #include "vk_extensions.h"
 #include "vk_object.h"
 
-#include "util/list.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -44,8 +42,6 @@ struct vk_device {
 
    /* For VK_EXT_private_data */
    uint32_t private_data_next_index;
-
-   struct list_head queues;
 
 #ifdef ANDROID
    mtx_t swapchain_private_mtx;
