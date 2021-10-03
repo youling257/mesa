@@ -1273,6 +1273,9 @@ GENX(pan_blit_ctx_init)(struct panfrost_device *dev,
 {
         memset(ctx, 0, sizeof(*ctx));
 
+        ctx->z_scale = (float)(info->dst.end.z - info->dst.start.z + 1) /
+                       (info->src.end.z - info->src.start.z + 1);
+
         struct pan_image_view sviews[2] = {
                 {
                         .format = info->src.planes[0].format,
@@ -1310,38 +1313,19 @@ GENX(pan_blit_ctx_init)(struct panfrost_device *dev,
         ctx->src.end.x = info->src.end.x;
         ctx->src.end.y = info->src.end.y;
         ctx->src.dim = sviews[0].dim;
+        if (sviews[0].dim == MALI_TEXTURE_DIMENSION_3D)
+                ctx->src.z_offset = info->src.start.z;
+        else
+                ctx->src.layer_offset = info->src.start.layer;
 
         if (info->dst.planes[0].image->layout.dim == MALI_TEXTURE_DIMENSION_3D) {
-                unsigned max_z = u_minify(info->dst.planes[0].image->layout.depth, info->dst.level) - 1;
-
-                ctx->z_scale = (float)(info->src.end.z - info->src.start.z) /
-                               (info->dst.end.z - info->dst.start.z);
-                assert(info->dst.start.z != info->dst.end.z);
-                if (info->dst.start.z > info->dst.end.z) {
-                        ctx->dst.cur_layer = info->dst.start.z - 1;
-                        ctx->dst.last_layer = info->dst.end.z;
-                } else {
-                        ctx->dst.cur_layer = info->dst.start.z;
-                        ctx->dst.last_layer = info->dst.end.z - 1;
-                }
-                ctx->dst.cur_layer = MIN2(MAX2(ctx->dst.cur_layer, 0), max_z);
-                ctx->dst.last_layer = MIN2(MAX2(ctx->dst.last_layer, 0), max_z);
-                ctx->dst.layer_offset = ctx->dst.cur_layer;
+                ctx->dst.layer_offset = info->dst.start.z;
+                ctx->dst.cur_layer = info->dst.start.z;
+                ctx->dst.last_layer = info->dst.end.z;
         } else {
-                unsigned max_layer = info->dst.planes[0].image->layout.array_size - 1;
                 ctx->dst.layer_offset = info->dst.start.layer;
                 ctx->dst.cur_layer = info->dst.start.layer;
-                ctx->dst.last_layer = MIN2(info->dst.end.layer, max_layer);
-                ctx->z_scale = 1;
-        }
-
-        if (sviews[0].dim == MALI_TEXTURE_DIMENSION_3D) {
-                if (info->src.start.z < info->src.end.z)
-                        ctx->src.z_offset = info->src.start.z + fabs(ctx->z_scale * 0.5f);
-                else
-                        ctx->src.z_offset = info->src.start.z - fabs(ctx->z_scale * 0.5f);
-        } else {
-                ctx->src.layer_offset = info->src.start.layer;
+                ctx->dst.last_layer = info->dst.end.layer;
         }
 
         /* Split depth and stencil */
@@ -1386,9 +1370,9 @@ GENX(pan_blit_ctx_init)(struct panfrost_device *dev,
 
         float dst_rect[] = {
                 info->dst.start.x, info->dst.start.y, 0.0, 1.0,
-                info->dst.end.x, info->dst.start.y, 0.0, 1.0,
-                info->dst.start.x, info->dst.end.y, 0.0, 1.0,
-                info->dst.end.x, info->dst.end.y, 0.0, 1.0,
+                info->dst.end.x + 1, info->dst.start.y, 0.0, 1.0,
+                info->dst.start.x, info->dst.end.y + 1, 0.0, 1.0,
+                info->dst.end.x + 1, info->dst.end.y + 1, 0.0, 1.0,
         };
 
         ctx->position =
@@ -1402,11 +1386,7 @@ GENX(pan_blit)(struct pan_blit_context *ctx,
                struct pan_scoreboard *scoreboard,
                mali_ptr tsd, mali_ptr tiler)
 {
-        if (ctx->dst.cur_layer < 0 ||
-            (ctx->dst.last_layer >= ctx->dst.layer_offset &&
-             ctx->dst.cur_layer > ctx->dst.last_layer) ||
-            (ctx->dst.last_layer < ctx->dst.layer_offset &&
-             ctx->dst.cur_layer < ctx->dst.last_layer))
+        if (ctx->dst.cur_layer < 0 || ctx->dst.cur_layer > ctx->dst.last_layer)
                 return (struct panfrost_ptr){ 0 };
 
         int32_t layer = ctx->dst.cur_layer - ctx->dst.layer_offset;
@@ -1418,9 +1398,9 @@ GENX(pan_blit)(struct pan_blit_context *ctx,
 
         float src_rect[] = {
                 ctx->src.start.x, ctx->src.start.y, src_z, 1.0,
-                ctx->src.end.x, ctx->src.start.y, src_z, 1.0,
-                ctx->src.start.x, ctx->src.end.y, src_z, 1.0,
-                ctx->src.end.x, ctx->src.end.y, src_z, 1.0,
+                ctx->src.end.x + 1, ctx->src.start.y, src_z, 1.0,
+                ctx->src.start.x, ctx->src.end.y + 1, src_z, 1.0,
+                ctx->src.end.x + 1, ctx->src.end.y + 1, src_z, 1.0,
         };
 
         mali_ptr src_coords =
