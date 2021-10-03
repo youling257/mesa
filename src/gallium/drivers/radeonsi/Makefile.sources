@@ -7,7 +7,6 @@ C_SOURCES := \
 	si_build_pm4.h \
 	si_clear.c \
 	si_compute.c \
-	si_compute_prim_discard.c \
 	si_compute.h \
 	si_compute_blit.c \
 	si_cp_dma.c \
@@ -18,6 +17,7 @@ C_SOURCES := \
 	si_get.c \
 	si_gfx_cs.c \
 	si_gpu_load.c \
+	si_nir_optim.c \
 	si_pipe.c \
 	si_pipe.h \
 	si_pm4.c \

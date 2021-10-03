@@ -78,6 +78,9 @@ MESA_UTIL_FILES := \
 	os_socket.h \
 	os_misc.c \
 	os_misc.h \
+	perf/u_trace.h \
+	perf/u_trace.c \
+	perf/u_trace_priv.h \
 	u_process.c \
 	u_process.h \
 	u_qsort.cpp \
@@ -114,10 +117,17 @@ MESA_UTIL_FILES := \
 	timespec.h \
 	u_atomic.c \
 	u_atomic.h \
+	u_debug_describe.c \
+	u_debug_describe.h \
+	u_debug_refcnt.c \
+	u_debug_refcnt.h \
 	u_dynarray.h \
 	u_endian.h \
 	u_math.c \
 	u_math.h \
+	u_fifo.h \
+	u_hash_table.c \
+	u_hash_table.h \
 	u_queue.c \
 	u_queue.h \
 	u_string.h \

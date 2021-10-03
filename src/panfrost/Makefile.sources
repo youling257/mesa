@@ -2,6 +2,7 @@ bifrost_FILES := \
         bifrost/bifrost.h \
         bifrost/bifrost_compile.c \
         bifrost/bifrost_compile.h \
+        bifrost/bi_helper_invocations.c \
         bifrost/bi_layout.c \
         bifrost/bi_liveness.c \
         bifrost/bi_lower_divergent_indirects.c \
@@ -15,9 +16,9 @@ bifrost_FILES := \
         bifrost/bi_opt_constant_fold.c \
         bifrost/bi_opt_copy_prop.c \
         bifrost/bi_opt_dce.c \
+        bifrost/bi_opt_mod_props.c \
         bifrost/bi_opt_push_ubo.c \
         bifrost/bi_quirks.h \
-        bifrost/bi_test_pack.c \
         bifrost/bir.c \
         bifrost/compiler.h \
         bifrost/cmdline.c
@@ -48,11 +49,8 @@ lib_FILES := \
         lib/pan_indirect_dispatch.h \
         lib/pan_indirect_draw.c \
         lib/pan_indirect_draw.h \
-        lib/pan_invocation.c \
-        lib/pan_pool.c \
         lib/pan_pool.h \
         lib/pan_props.c \
-        lib/pan_sampler.c \
         lib/pan_samples.c \
         lib/pan_shader.c \
         lib/pan_shader.h \
@@ -61,6 +59,7 @@ lib_FILES := \
         lib/pan_tiler.c \
         lib/pan_texture.c \
         lib/pan_scratch.c \
+        lib/pan_util.c \
         lib/pan_util.h
 
 midgard_FILES := \

@@ -33,7 +33,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES := \
 	$(MESA_TOP)/src/gallium/include \
-	$(MESA_TOP)/src/gallium/auxiliary
+	$(MESA_TOP)/src/gallium/auxiliary \
+	$(MESA_TOP)/src/freedreno/common
 
 LOCAL_MODULE := libfreedreno_perfcntrs
 

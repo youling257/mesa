@@ -88,6 +88,7 @@ LOCAL_C_INCLUDES := \
 	$(MESA_TOP)/src/gallium/include \
 	$(MESA_TOP)/src/gallium/auxiliary \
 	$(MESA_TOP)/src/freedreno/isa \
+	$(MESA_TOP)/src/freedreno/common \
 	$(intermediates)/isa
 
 # We need libmesa_nir to get NIR's generated include directories.

@@ -57,7 +57,7 @@ LOCAL_GENERATED_SOURCES += $(addprefix $(intermediates)/, $(GENERATED_SOURCES))
 
 freedreno_tracepoints_deps := \
 	$(MESA_TOP)/src/gallium/drivers/freedreno/freedreno_tracepoints.py \
-	$(MESA_TOP)/src/gallium/auxiliary/util/u_trace.py
+	$(MESA_TOP)/src/util/perf/u_trace.py
 
 freedreno_tracepoints_c := $(intermediates)/freedreno_tracepoints.c
 freedreno_tracepoints_h := $(intermediates)/freedreno_tracepoints.h
@@ -65,7 +65,7 @@ freedreno_tracepoints_h := $(intermediates)/freedreno_tracepoints.h
 $(intermediates)/freedreno_tracepoints.c \
 $(intermediates)/freedreno_tracepoints.h: $(freedreno_tracepoints_deps)
 	@mkdir -p $(dir $@)
-	$(hide) $(MESA_PYTHON3) $< -p $(MESA_TOP)/src/gallium/auxiliary/util -C $(freedreno_tracepoints_c) -H $(freedreno_tracepoints_h)
+	$(hide) $(MESA_PYTHON3) $< -p $(MESA_TOP)/src/util/perf -C $(freedreno_tracepoints_c) -H $(freedreno_tracepoints_h)
 
 include $(GALLIUM_COMMON_MK)
 include $(BUILD_STATIC_LIBRARY)

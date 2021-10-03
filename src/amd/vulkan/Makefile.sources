@@ -44,6 +44,7 @@ RADV_LAYER_SQTT_FILES := \
 
 VULKAN_FILES := \
 	radv_acceleration_structure.c \
+	radv_acceleration_structure.h \
 	radv_cmd_buffer.c \
 	radv_cs.h \
 	radv_debug.c \
@@ -75,6 +76,7 @@ VULKAN_FILES := \
 	radv_pass.c \
 	radv_pipeline.c \
 	radv_pipeline_cache.c \
+	radv_pipeline_rt.c \
 	radv_private.h \
 	radv_radeon_winsys.h \
 	radv_shader.c \

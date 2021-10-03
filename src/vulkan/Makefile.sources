@@ -24,10 +24,15 @@ VULKAN_WSI_DISPLAY_FILES := \
 	wsi/wsi_common_display.h
 
 VULKAN_UTIL_FILES := \
+	util/vk_alloc.c \
 	util/vk_alloc.h \
 	util/vk_cmd_copy.c \
+	util/vk_command_buffer.c \
+	util/vk_command_buffer.h \
 	util/vk_debug_report.c \
 	util/vk_debug_report.h \
+	util/vk_debug_utils.c \
+	util/vk_debug_utils.h \
 	util/vk_deferred_operation.c \
 	util/vk_deferred_operation.h \
 	util/vk_descriptors.c \
@@ -35,12 +40,18 @@ VULKAN_UTIL_FILES := \
 	util/vk_device.c \
 	util/vk_device.h \
 	util/vk_format.c \
+	util/vk_image.c \
+	util/vk_image.h \
 	util/vk_instance.c \
 	util/vk_instance.h \
+	util/vk_log.c \
+	util/vk_log.h \
 	util/vk_object.c \
 	util/vk_object.h \
 	util/vk_physical_device.c \
 	util/vk_physical_device.h \
+	util/vk_queue.c \
+	util/vk_queue.h \
 	util/vk_render_pass.c \
 	util/vk_shader_module.c \
 	util/vk_shader_module.h \
