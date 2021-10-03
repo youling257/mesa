@@ -348,36 +348,20 @@ pan_iview_get_surface(const struct pan_image_view *iview,
 
 #else /* ifndef PAN_ARCH */
 
-#if PAN_ARCH >= 5
-/* Arm Scalable Texture Compression (ASTC) corresponds to just a few formats.
- * The block dimension is not part of the format. Instead, it is encoded as a
- * 6-bit tag on the payload pointer. Map the block size for a single dimension.
+/* A Scalable Texture Compression (ASTC) corresponds to just a few texture type
+ * in the hardware, but in fact can be parametrized to have various widths and
+ * heights for the so-called "stretch factor". It turns out these parameters
+ * are stuffed in the bottom bits of the payload pointers. This functions
+ * computes these magic stuffing constants based on the ASTC format in use. The
+ * constant in a given dimension is 3-bits, and two are stored side-by-side for
+ * each active dimension.
  */
 
-static inline enum mali_astc_2d_dimension
-panfrost_astc_dim_2d(unsigned dim)
+static unsigned
+panfrost_astc_stretch(unsigned dim)
 {
-        switch (dim) {
-        case  4: return MALI_ASTC_2D_DIMENSION_4;
-        case  5: return MALI_ASTC_2D_DIMENSION_5;
-        case  6: return MALI_ASTC_2D_DIMENSION_6;
-        case  8: return MALI_ASTC_2D_DIMENSION_8;
-        case 10: return MALI_ASTC_2D_DIMENSION_10;
-        case 12: return MALI_ASTC_2D_DIMENSION_12;
-        default: unreachable("Invalid ASTC dimension");
-        }
-}
-
-static inline enum mali_astc_3d_dimension
-panfrost_astc_dim_3d(unsigned dim)
-{
-        switch (dim) {
-        case  3: return MALI_ASTC_3D_DIMENSION_3;
-        case  4: return MALI_ASTC_3D_DIMENSION_4;
-        case  5: return MALI_ASTC_3D_DIMENSION_5;
-        case  6: return MALI_ASTC_3D_DIMENSION_6;
-        default: unreachable("Invalid ASTC dimension");
-        }
+        assert(dim >= 4 && dim <= 12);
+        return MIN2(dim, 11) - 4;
 }
 
 /* Texture addresses are tagged with information about compressed formats.
@@ -416,19 +400,12 @@ panfrost_compression_tag(const struct util_format_description *desc,
 
                 return flags;
         } else if (desc->layout == UTIL_FORMAT_LAYOUT_ASTC) {
-                if (desc->block.depth > 1) {
-                        return (panfrost_astc_dim_3d(desc->block.depth) << 4) |
-                               (panfrost_astc_dim_3d(desc->block.height) << 2) |
-                                panfrost_astc_dim_3d(desc->block.width);
-                } else {
-                        return (panfrost_astc_dim_2d(desc->block.height) << 3) |
-                                panfrost_astc_dim_2d(desc->block.width);
-                }
+                return (panfrost_astc_stretch(desc->block.height) << 3) |
+                        panfrost_astc_stretch(desc->block.width);
         } else {
                 return 0;
         }
 }
-#endif
 
 /* Cubemaps have 6 faces as "layers" in between each actual layer. We
  * need to fix this up. TODO: logic wrong in the asserted out cases ...
@@ -597,7 +574,7 @@ panfrost_emit_texture_payload(const struct pan_image_view *iview,
                               void *payload)
 {
         const struct pan_image_layout *layout = &iview->image->layout;
-        ASSERTED const struct util_format_description *desc =
+        const struct util_format_description *desc =
                 util_format_description(format);
 
         mali_ptr base = iview->image->data.bo->ptr.gpu + iview->image->data.offset;
@@ -607,15 +584,10 @@ panfrost_emit_texture_payload(const struct pan_image_view *iview,
                 base += iview->buf.offset;
         }
 
-#if PAN_ARCH >= 5
         /* panfrost_compression_tag() wants the dimension of the resource, not the
          * one of the image view (those might differ).
          */
         base |= panfrost_compression_tag(desc, layout->dim, layout->modifier);
-#else
-        assert(!drm_is_afbc(layout->modifier) && "no AFBC on v4");
-        assert(desc->layout != UTIL_FORMAT_LAYOUT_ASTC && "no ASTC on v4");
-#endif
 
         /* Inject the addresses in, interleaving array indices, mip levels,
          * cube faces, and strides in that order */
