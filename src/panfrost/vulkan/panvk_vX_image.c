@@ -26,7 +26,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "genxml/gen_macros.h"
+#include "gen_macros.h"
 #include "panvk_private.h"
 #include "panfrost-quirks.h"
 

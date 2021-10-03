@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include "util/format/u_format.h"
 #include "pan_bo.h"
-#include "genxml/gen_macros.h"
+#include "gen_macros.h"
 #include "pan_device.h"
 
 /* Indices for named (non-XFB) varyings that are present. These are packed
@@ -233,7 +233,6 @@ panfrost_pack_work_groups_compute(
         }
 }
 
-#if PAN_ARCH >= 5
 /* Format conversion */
 static inline enum mali_z_internal_format
 panfrost_get_z_internal_format(enum pipe_format fmt)
@@ -252,7 +251,6 @@ panfrost_get_z_internal_format(enum pipe_format fmt)
                 unreachable("Unsupported depth/stencil format.");
          }
 }
-#endif
 
 #endif /* PAN_ARCH */
 
