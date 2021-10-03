@@ -100,14 +100,17 @@ panvk_meta_blit(struct panvk_cmd_buffer *cmdbuf,
       fbinfo->zs.view.s = &views[1];
    }
 
-   panvk_per_arch(cmd_close_batch)(cmdbuf);
+   if (cmdbuf->state.batch)
+      panvk_per_arch(cmd_close_batch)(cmdbuf);
 
    GENX(pan_blit_ctx_init)(pdev, blitinfo, &cmdbuf->desc_pool.base, &ctx);
    do {
       if (ctx.dst.cur_layer < 0)
          continue;
 
-      struct panvk_batch *batch = panvk_cmd_open_batch(cmdbuf);
+      panvk_cmd_open_batch(cmdbuf);
+
+      struct panvk_batch *batch = cmdbuf->state.batch;
       mali_ptr tsd, tiler;
 
       views[0].first_layer = views[0].last_layer = ctx.dst.cur_layer;

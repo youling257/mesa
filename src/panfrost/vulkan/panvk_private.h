@@ -174,7 +174,7 @@ struct panvk_meta {
       } img2buf[PANVK_META_COPY_NUM_TEX_TYPES][PANVK_META_COPY_IMG2BUF_NUM_FORMATS];
       struct {
          mali_ptr rsd;
-      } img2img[2][PANVK_META_COPY_NUM_TEX_TYPES][PANVK_META_COPY_IMG2IMG_NUM_FORMATS];
+      } img2img[PANVK_META_COPY_NUM_TEX_TYPES][PANVK_META_COPY_IMG2IMG_NUM_FORMATS];
       struct {
          mali_ptr rsd;
          struct panfrost_ubo_push pushmap;
@@ -299,8 +299,6 @@ struct panvk_batch {
       struct panfrost_ptr descs;
       uint32_t templ[TILER_DESC_WORDS];
    } tiler;
-   struct pan_tls_info tlsinfo;
-   unsigned wls_total_size;
    bool issued;
 };
 
@@ -572,6 +570,10 @@ struct panvk_attrib_buf {
 };
 
 struct panvk_cmd_state {
+   VkPipelineBindPoint bind_point;
+
+   struct panvk_pipeline *pipeline;
+
    uint32_t dirty;
 
    struct panvk_varyings_info varyings;
@@ -580,6 +582,10 @@ struct panvk_cmd_state {
    struct {
       float constants[4];
    } blend;
+
+   struct {
+      struct pan_compute_dim wg_count;
+   } compute;
 
    struct {
       struct {
@@ -653,11 +659,6 @@ enum panvk_cmd_buffer_status {
    PANVK_CMD_BUFFER_STATUS_PENDING,
 };
 
-struct panvk_cmd_bind_point_state {
-   struct panvk_descriptor_state desc_state;
-   const struct panvk_pipeline *pipeline;
-};
-
 struct panvk_cmd_buffer {
    struct vk_command_buffer vk;
 
@@ -681,21 +682,12 @@ struct panvk_cmd_buffer {
    VkShaderStageFlags push_constant_stages;
    struct panvk_descriptor_set meta_push_descriptors;
 
-   struct panvk_cmd_bind_point_state bind_points[MAX_BIND_POINTS];
+   struct panvk_descriptor_state descriptors[MAX_BIND_POINTS];
 
    VkResult record_result;
 };
 
-#define panvk_cmd_get_bind_point_state(cmdbuf, bindpoint) \
-        &(cmdbuf)->bind_points[VK_PIPELINE_BIND_POINT_ ## bindpoint]
-
-#define panvk_cmd_get_pipeline(cmdbuf, bindpoint) \
-        (cmdbuf)->bind_points[VK_PIPELINE_BIND_POINT_ ## bindpoint].pipeline
-
-#define panvk_cmd_get_desc_state(cmdbuf, bindpoint) \
-        &(cmdbuf)->bind_points[VK_PIPELINE_BIND_POINT_ ## bindpoint].desc_state
-
-struct panvk_batch *
+void
 panvk_cmd_open_batch(struct panvk_cmd_buffer *cmdbuf);
 
 void
@@ -933,9 +925,7 @@ struct panvk_image_view {
 
    VkFormat vk_format;
    struct panfrost_bo *bo;
-   struct {
-      uint32_t tex[TEXTURE_DESC_WORDS];
-   } descs;
+   uint32_t desc[TEXTURE_DESC_WORDS];
 };
 
 #define SAMPLER_DESC_WORDS 8

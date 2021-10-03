@@ -78,7 +78,7 @@ panvk_CmdBindDescriptorSets(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_pipeline_layout, layout, _layout);
 
    struct panvk_descriptor_state *descriptors_state =
-      &cmdbuf->bind_points[pipelineBindPoint].desc_state;
+      &cmdbuf->descriptors[pipelineBindPoint];
 
    for (unsigned i = 0; i < descriptorSetCount; ++i) {
       unsigned idx = i + firstSet;
@@ -133,25 +133,19 @@ panvk_CmdBindPipeline(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_pipeline, pipeline, _pipeline);
 
-   cmdbuf->bind_points[pipelineBindPoint].pipeline = pipeline;
+   cmdbuf->state.bind_point = pipelineBindPoint;
+   cmdbuf->state.pipeline = pipeline;
+   cmdbuf->state.varyings = pipeline->varyings;
+   cmdbuf->state.vb.attrib_bufs = cmdbuf->state.vb.attribs = 0;
    cmdbuf->state.fs_rsd = 0;
-   memset(cmdbuf->bind_points[pipelineBindPoint].desc_state.sysvals, 0,
-          sizeof(cmdbuf->bind_points[0].desc_state.sysvals));
-
-   if (pipelineBindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS) {
-      cmdbuf->state.varyings = pipeline->varyings;
-
-      if (!(pipeline->dynamic_state_mask & BITFIELD_BIT(VK_DYNAMIC_STATE_VIEWPORT)))
-         cmdbuf->state.viewport = pipeline->viewport;
-      if (!(pipeline->dynamic_state_mask & BITFIELD_BIT(VK_DYNAMIC_STATE_SCISSOR)))
-         cmdbuf->state.scissor = pipeline->scissor;
-   }
+   memset(cmdbuf->descriptors[pipelineBindPoint].sysvals, 0,
+          sizeof(cmdbuf->descriptors[pipelineBindPoint].sysvals));
 
    /* Sysvals are passed through UBOs, we need dirty the UBO array if the
     * pipeline contain shaders using sysvals.
     */
    if (pipeline->num_sysvals)
-      cmdbuf->bind_points[pipelineBindPoint].desc_state.ubos = 0;
+      cmdbuf->descriptors[pipelineBindPoint].ubos = 0;
 }
 
 void
@@ -393,7 +387,7 @@ panvk_cmd_fb_info_set_subpass(struct panvk_cmd_buffer *cmdbuf)
 
       if (util_format_has_stencil(fdesc)) {
          fbinfo->zs.clear.s = subpass->zs_attachment.clear;
-         fbinfo->zs.clear_value.stencil = clears[subpass->zs_attachment.idx].stencil;
+         fbinfo->zs.clear_value.stencil = clears[subpass->zs_attachment.idx].depth;
          if (!fbinfo->zs.view.zs)
             fbinfo->zs.view.s = &view->pview;
       }
@@ -434,12 +428,12 @@ panvk_CmdBeginRenderPass2(VkCommandBuffer commandBuffer,
                                    VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
    util_dynarray_init(&cmdbuf->state.batch->jobs, NULL);
    util_dynarray_init(&cmdbuf->state.batch->event_ops, NULL);
-   assert(pRenderPassBegin->clearValueCount <= pass->attachment_count);
-   cmdbuf->state.clear =
-      vk_zalloc(&cmdbuf->pool->alloc,
-                sizeof(*cmdbuf->state.clear) * pass->attachment_count,
-                8, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
+   cmdbuf->state.clear = vk_zalloc(&cmdbuf->pool->alloc,
+                                   sizeof(*cmdbuf->state.clear) *
+                                   pRenderPassBegin->clearValueCount, 8,
+                                   VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
    panvk_cmd_prepare_clear_values(cmdbuf, pRenderPassBegin->pClearValues);
+   memset(&cmdbuf->state.compute, 0, sizeof(cmdbuf->state.compute));
    panvk_cmd_fb_info_init(cmdbuf);
    panvk_cmd_fb_info_set_subpass(cmdbuf);
 }
@@ -480,7 +474,7 @@ panvk_cmd_preload_fb_after_batch_split(struct panvk_cmd_buffer *cmdbuf)
    }
 }
 
-struct panvk_batch *
+void
 panvk_cmd_open_batch(struct panvk_cmd_buffer *cmdbuf)
 {
    assert(!cmdbuf->state.batch);
@@ -488,7 +482,6 @@ panvk_cmd_open_batch(struct panvk_cmd_buffer *cmdbuf)
                                    sizeof(*cmdbuf->state.batch), 8,
                                    VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
    assert(cmdbuf->state.batch);
-   return cmdbuf->state.batch;
 }
 
 void

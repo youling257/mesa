@@ -424,7 +424,8 @@ panvk_per_arch(CmdClearColorImage)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_image, img, image);
 
-   panvk_per_arch(cmd_close_batch)(cmdbuf);
+   if (cmdbuf->state.batch)
+      panvk_per_arch(cmd_close_batch)(cmdbuf);
 
    for (unsigned i = 0; i < rangeCount; i++)
       panvk_meta_clear_color_img(cmdbuf, img, pColor, &pRanges[i]);
@@ -502,7 +503,8 @@ panvk_per_arch(CmdClearDepthStencilImage)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_image, img, image);
 
-   panvk_per_arch(cmd_close_batch)(cmdbuf);
+   if (cmdbuf->state.batch)
+      panvk_per_arch(cmd_close_batch)(cmdbuf);
 
    for (unsigned i = 0; i < rangeCount; i++)
       panvk_meta_clear_zs_img(cmdbuf, img, pDepthStencil, &pRanges[i]);
