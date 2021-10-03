@@ -131,7 +131,6 @@ struct panfrost_compile_inputs {
         bool no_ubo_to_push;
 
         enum pipe_format rt_formats[8];
-        uint8_t raw_fmt_mask;
         unsigned nr_cbufs;
 };
 

@@ -41,9 +41,7 @@ enum pan_format_class {
 
 nir_alu_type pan_unpacked_type_for_format(const struct util_format_description *desc);
 
-bool pan_lower_framebuffer(nir_shader *shader,
-                           const enum pipe_format *rt_fmts,
-                           uint8_t raw_fmt_mask,
+bool pan_lower_framebuffer(nir_shader *shader, const enum pipe_format *rt_fmts,
                            bool is_blend, unsigned quirks);
 
 #endif

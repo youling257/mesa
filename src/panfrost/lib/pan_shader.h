@@ -39,7 +39,7 @@ GENX(pan_shader_get_compiler_options)(void);
 
 void
 GENX(pan_shader_compile)(nir_shader *nir,
-                         struct panfrost_compile_inputs *inputs,
+                         const struct panfrost_compile_inputs *inputs,
                          struct util_dynarray *binary,
                          struct pan_shader_info *info);
 
