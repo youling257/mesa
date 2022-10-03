@@ -349,7 +349,6 @@ _eglSetFuncName(const char *funcName, _EGLDisplay *disp, EGLenum objectType, _EG
 
 #define _EGL_FUNC_START(disp, objectType, object) \
    do { \
-      MESA_TRACE_FUNC(); \
       _eglSetFuncName(__func__, disp, objectType, (_EGLResource *) object); \
    } while(0)
 
