@@ -32,7 +32,6 @@
 #include "util/u_upload_mgr.h"
 #include "driver_trace/tr_context.h"
 #include "util/log.h"
-#include "util/perf/cpu_trace.h"
 #include "compiler/shader_info.h"
 
 #if TC_DEBUG >= 1
@@ -642,8 +641,6 @@ _tc_sync(struct threaded_context *tc, UNUSED const char *info, UNUSED const char
    struct tc_batch *next = &tc->batch_slots[tc->next];
    bool synced = false;
 
-   MESA_TRACE_BEGIN(func);
-
    tc_debug_check(tc);
 
    if (tc->options.parse_renderpass_info && tc->in_renderpass && !tc->flushing) {
@@ -708,8 +705,6 @@ _tc_sync(struct threaded_context *tc, UNUSED const char *info, UNUSED const char
       tc->seen_fb_state = false;
       tc->query_ended = false;
    }
-
-   MESA_TRACE_END();
 }
 
 #define tc_sync(tc) _tc_sync(tc, "", __func__)
