@@ -1963,11 +1963,8 @@ x11_manage_fifo_queues(void *state)
        * acquirable by the consumer or wait there on such an event.
        */
       uint32_t image_index = 0;
-      {
-         MESA_TRACE_SCOPE("pull present queue");
-         result = wsi_queue_pull(&chain->present_queue, &image_index, INT64_MAX);
-         assert(result != VK_TIMEOUT);
-      }
+      result = wsi_queue_pull(&chain->present_queue, &image_index, INT64_MAX);
+      assert(result != VK_TIMEOUT);
 
       if (result < 0) {
          goto fail;
@@ -1983,7 +1980,6 @@ x11_manage_fifo_queues(void *state)
        */
       if (x11_needs_wait_for_fences(chain->base.wsi, wsi_conn,
                                     chain->base.present_mode)) {
-         MESA_TRACE_SCOPE("wait fence");
          result = chain->base.wsi->WaitForFences(chain->base.device, 1,
                                         &chain->base.fences[image_index],
                                         true, UINT64_MAX);
@@ -2010,8 +2006,6 @@ x11_manage_fifo_queues(void *state)
          goto fail;
 
       if (chain->has_acquire_queue) {
-         MESA_TRACE_SCOPE("wait present");
-
          /* Assume this isn't a swapchain where we force 5 images, because those
           * don't end up with an acquire queue at the moment.
           */

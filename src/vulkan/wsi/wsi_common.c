@@ -1331,7 +1331,6 @@ wsi_common_queue_present(const struct wsi_device *wsi,
                goto fail_present;
          }
       } else {
-         MESA_TRACE_SCOPE("throttle");
          result =
             wsi->WaitForFences(device, 1, &swapchain->fences[image_index],
                                true, ~0ull);
