@@ -24,7 +24,6 @@
 #define WSI_COMMON_PRIVATE_H
 
 #include "wsi_common.h"
-#include "util/perf/cpu_trace.h"
 #include "vulkan/runtime/vk_object.h"
 #include "vulkan/runtime/vk_sync.h"
 
