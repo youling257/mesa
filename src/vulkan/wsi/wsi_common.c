@@ -72,8 +72,6 @@ wsi_device_init(struct wsi_device *wsi,
 
    WSI_DEBUG = parse_debug_string(getenv("MESA_VK_WSI_DEBUG"), debug_control);
 
-   util_perfetto_init();
-
    memset(wsi, 0, sizeof(*wsi));
 
    wsi->instance_alloc = *alloc;
@@ -913,7 +911,6 @@ wsi_CreateSwapchainKHR(VkDevice _device,
                        const VkAllocationCallbacks *pAllocator,
                        VkSwapchainKHR *pSwapchain)
 {
-   MESA_TRACE_FUNC();
    VK_FROM_HANDLE(vk_device, device, _device);
    ICD_FROM_HANDLE(VkIcdSurfaceBase, surface, pCreateInfo->surface);
    struct wsi_device *wsi_device = device->physical->wsi_device;
@@ -999,7 +996,6 @@ wsi_DestroySwapchainKHR(VkDevice _device,
                         VkSwapchainKHR _swapchain,
                         const VkAllocationCallbacks *pAllocator)
 {
-   MESA_TRACE_FUNC();
    VK_FROM_HANDLE(vk_device, device, _device);
    VK_FROM_HANDLE(wsi_swapchain, swapchain, _swapchain);
    const VkAllocationCallbacks *alloc;
@@ -1069,7 +1065,6 @@ wsi_GetSwapchainImagesKHR(VkDevice device,
                           uint32_t *pSwapchainImageCount,
                           VkImage *pSwapchainImages)
 {
-   MESA_TRACE_FUNC();
    return wsi_common_get_images(swapchain,
                                 pSwapchainImageCount,
                                 pSwapchainImages);
@@ -1083,7 +1078,6 @@ wsi_AcquireNextImageKHR(VkDevice _device,
                         VkFence fence,
                         uint32_t *pImageIndex)
 {
-   MESA_TRACE_FUNC();
    VK_FROM_HANDLE(vk_device, device, _device);
 
    const VkAcquireNextImageInfoKHR acquire_info = {
@@ -1206,7 +1200,6 @@ wsi_AcquireNextImage2KHR(VkDevice _device,
                          const VkAcquireNextImageInfoKHR *pAcquireInfo,
                          uint32_t *pImageIndex)
 {
-   MESA_TRACE_FUNC();
    VK_FROM_HANDLE(vk_device, device, _device);
 
    return wsi_common_acquire_next_image2(device->physical->wsi_device,
@@ -1485,7 +1478,6 @@ wsi_common_queue_present(const struct wsi_device *wsi,
 VKAPI_ATTR VkResult VKAPI_CALL
 wsi_QueuePresentKHR(VkQueue _queue, const VkPresentInfoKHR *pPresentInfo)
 {
-   MESA_TRACE_FUNC();
    VK_FROM_HANDLE(vk_queue, queue, _queue);
 
    return wsi_common_queue_present(queue->base.device->physical->wsi_device,
