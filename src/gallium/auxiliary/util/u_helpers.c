@@ -32,7 +32,6 @@
 #include "util/u_upload_mgr.h"
 #include "util/u_thread.h"
 #include "util/os_time.h"
-#include "util/perf/cpu_trace.h"
 #include <inttypes.h>
 
 /**
@@ -394,8 +393,6 @@ util_throttle_memory_usage(struct pipe_context *pipe,
 
    if (!t->max_mem_usage)
       return;
-
-   MESA_TRACE_FUNC();
 
    struct pipe_screen *screen = pipe->screen;
    struct pipe_fence_handle **fence = NULL;
