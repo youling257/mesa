@@ -1767,10 +1767,12 @@ VkResult anv_GetPhysicalDeviceImageFormatProperties2(
          if (ahw_supported) {
             if (external_props) {
                external_props->externalMemoryProperties = android_image_props;
+#if defined(ANDROID) && ANDROID_API_LEVEL >= 26
                if (anv_ahb_format_for_vk_format(base_info->format)) {
                   external_props->externalMemoryProperties.externalMemoryFeatures |=
                      VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT;
                }
+#endif
             }
             break;
          }
