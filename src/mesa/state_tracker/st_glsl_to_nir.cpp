@@ -497,8 +497,6 @@ st_link_glsl_to_nir(struct gl_context *ctx,
       return GL_TRUE;
    }
 
-   MESA_TRACE_FUNC();
-
    assert(shader_program->data->LinkStatus);
 
    /* Skip the GLSL steps when using SPIR-V. */
@@ -869,8 +867,6 @@ st_finalize_nir(struct st_context *st, struct gl_program *prog,
 {
    struct pipe_screen *screen = st->screen;
 
-   MESA_TRACE_FUNC();
-
    NIR_PASS_V(nir, nir_split_var_copies);
    NIR_PASS_V(nir, nir_lower_var_copies);
 
@@ -929,8 +925,6 @@ st_link_shader(struct gl_context *ctx, struct gl_shader_program *prog)
 {
    unsigned int i;
    bool spirv = false;
-
-   MESA_TRACE_FUNC();
 
    _mesa_clear_shader_program_data(ctx, prog);
 

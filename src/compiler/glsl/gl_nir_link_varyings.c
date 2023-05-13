@@ -34,7 +34,6 @@
 #include "program/symbol_table.h"
 #include "util/hash_table.h"
 #include "util/u_math.h"
-#include "util/perf/cpu_trace.h"
 
 #include "nir.h"
 #include "nir_builder.h"
@@ -4460,8 +4459,6 @@ gl_nir_link_varyings(const struct gl_constants *consts,
    void *mem_ctx = ralloc_context(NULL);
 
    unsigned first, last;
-
-   MESA_TRACE_FUNC();
 
    store_fragdepth_layout(prog);
 

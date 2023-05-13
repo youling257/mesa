@@ -32,7 +32,6 @@
 #include "main/shaderobj.h"
 #include "ir_uniform.h" /* for gl_uniform_storage */
 #include "util/glheader.h"
-#include "util/perf/cpu_trace.h"
 
 /**
  * This file included general link methods, using NIR, instead of IR as
@@ -43,8 +42,6 @@ void
 gl_nir_opts(nir_shader *nir)
 {
    bool progress;
-
-   MESA_TRACE_FUNC();
 
    do {
       progress = false;
@@ -163,8 +160,6 @@ gl_nir_can_add_pointsize_to_program(const struct gl_constants *consts,
 static void
 gl_nir_link_opts(nir_shader *producer, nir_shader *consumer)
 {
-   MESA_TRACE_FUNC();
-
    if (producer->options->lower_to_scalar) {
       NIR_PASS_V(producer, nir_lower_io_to_scalar_early, nir_var_shader_out);
       NIR_PASS_V(consumer, nir_lower_io_to_scalar_early, nir_var_shader_in);
@@ -1145,8 +1140,6 @@ gl_nir_link_spirv(const struct gl_constants *consts,
    struct gl_linked_shader *linked_shader[MESA_SHADER_STAGES];
    unsigned num_shaders = 0;
 
-   MESA_TRACE_FUNC();
-
    for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
       if (prog->_LinkedShaders[i]) {
          linked_shader[num_shaders++] = prog->_LinkedShaders[i];
@@ -1316,8 +1309,6 @@ gl_nir_link_glsl(const struct gl_constants *consts,
 {
    if (prog->NumShaders == 0)
       return true;
-
-   MESA_TRACE_FUNC();
 
    prog->last_vert_prog = NULL;
    for (int i = MESA_SHADER_GEOMETRY; i >= MESA_SHADER_VERTEX; i--) {
