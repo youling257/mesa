@@ -496,7 +496,7 @@ vlVaGetImage(VADriverContextP ctx, VASurfaceID surface, int x, int y,
    vlVaSurface *surf;
    vlVaBuffer *img_buf;
    VAImage *vaimage;
-   struct pipe_resource *view_resources[VL_NUM_COMPONENTS];
+   struct pipe_sampler_view **views;
    enum pipe_format format;
    bool convert = false;
    uint8_t *data[3];
@@ -569,7 +569,11 @@ vlVaGetImage(VADriverContextP ctx, VASurfaceID surface, int x, int y,
       }
    }
 
-   surf->buffer->get_resources(surf->buffer, view_resources);
+   views = surf->buffer->get_sampler_view_planes(surf->buffer);
+   if (!views) {
+      mtx_unlock(&drv->mutex);
+      return VA_STATUS_ERROR_OPERATION_FAILED;
+   }
 
    for (i = 0; i < MIN2(vaimage->num_planes, 3); i++) {
       data[i] = ((uint8_t*)img_buf->data) + vaimage->offsets[i];
@@ -591,18 +595,18 @@ vlVaGetImage(VADriverContextP ctx, VASurfaceID surface, int x, int y,
       unsigned box_h = align(height, 2);
       unsigned box_x = x & ~1;
       unsigned box_y = y & ~1;
-      if (!view_resources[i]) continue;
+      if (!views[i]) continue;
       vl_video_buffer_adjust_size(&box_w, &box_h, i,
                                   pipe_format_to_chroma_format(surf->templat.buffer_format),
                                   surf->templat.interlaced);
       vl_video_buffer_adjust_size(&box_x, &box_y, i,
                                   pipe_format_to_chroma_format(surf->templat.buffer_format),
                                   surf->templat.interlaced);
-      for (j = 0; j < view_resources[i]->array_size; ++j) {
+      for (j = 0; j < views[i]->texture->array_size; ++j) {
          struct pipe_box box = {box_x, box_y, j, box_w, box_h, 1};
          struct pipe_transfer *transfer;
          uint8_t *map;
-         map = drv->pipe->texture_map(drv->pipe, view_resources[i], 0,
+         map = drv->pipe->texture_map(drv->pipe, views[i]->texture, 0,
                   PIPE_MAP_READ, &box, &transfer);
          if (!map) {
             mtx_unlock(&drv->mutex);
@@ -611,12 +615,12 @@ vlVaGetImage(VADriverContextP ctx, VASurfaceID surface, int x, int y,
 
          if (i == 1 && convert) {
             u_copy_nv12_to_yv12((void *const *)data, pitches, i, j,
-               transfer->stride, view_resources[i]->array_size,
+               transfer->stride, views[i]->texture->array_size,
                map, box.width, box.height);
          } else {
             util_copy_rect((uint8_t*)(data[i] + pitches[i] * j),
-               view_resources[i]->format,
-               pitches[i] * view_resources[i]->array_size, 0, 0,
+               views[i]->texture->format,
+               pitches[i] * views[i]->texture->array_size, 0, 0,
                box.width, box.height, map, transfer->stride, 0, 0);
          }
          pipe_texture_unmap(drv->pipe, transfer);
@@ -636,7 +640,7 @@ vlVaPutImage(VADriverContextP ctx, VASurfaceID surface, VAImageID image,
    vlVaSurface *surf;
    vlVaBuffer *img_buf;
    VAImage *vaimage;
-   struct pipe_resource *view_resources[VL_NUM_COMPONENTS];
+   struct pipe_sampler_view **views;
    enum pipe_format format;
    uint8_t *data[3];
    unsigned pitches[3], i, j;
@@ -699,7 +703,11 @@ vlVaPutImage(VADriverContextP ctx, VASurfaceID surface, VAImageID image,
       surf->buffer = tmp_buf;
    }
 
-   surf->buffer->get_resources(surf->buffer, view_resources);
+   views = surf->buffer->get_sampler_view_planes(surf->buffer);
+   if (!views) {
+      mtx_unlock(&drv->mutex);
+      return VA_STATUS_ERROR_OPERATION_FAILED;
+   }
 
    for (i = 0; i < MIN2(vaimage->num_planes, 3); i++) {
       data[i] = ((uint8_t*)img_buf->data) + vaimage->offsets[i];
@@ -720,8 +728,8 @@ vlVaPutImage(VADriverContextP ctx, VASurfaceID surface, VAImageID image,
       unsigned width, height;
       struct pipe_resource *tex;
 
-      if (!view_resources[i]) continue;
-      tex = view_resources[i];
+      if (!views[i]) continue;
+      tex = views[i]->texture;
 
       vlVaVideoSurfaceSize(surf, i, &width, &height);
       for (j = 0; j < tex->array_size; ++j) {
@@ -752,7 +760,7 @@ vlVaPutImage(VADriverContextP ctx, VASurfaceID surface, VAImageID image,
             drv->pipe->texture_subdata(drv->pipe, tex, 0,
                                        PIPE_MAP_WRITE, &dst_box,
                                        data[i] + pitches[i] * j,
-                                       pitches[i] * view_resources[i]->array_size, 0);
+                                       pitches[i] * views[i]->texture->array_size, 0);
          }
       }
    }
