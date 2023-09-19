@@ -1083,8 +1083,6 @@ fd_screen_create(int fd,
    fd_perfetto_init();
 #endif
 
-   util_gpuvis_init();
-
    pscreen = &screen->base;
 
    screen->dev = dev;

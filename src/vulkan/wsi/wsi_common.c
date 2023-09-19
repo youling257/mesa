@@ -72,7 +72,7 @@ wsi_device_init(struct wsi_device *wsi,
 
    WSI_DEBUG = parse_debug_string(getenv("MESA_VK_WSI_DEBUG"), debug_control);
 
-   util_cpu_trace_init();
+   util_perfetto_init();
 
    memset(wsi, 0, sizeof(*wsi));
 
